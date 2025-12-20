@@ -17,53 +17,77 @@
 
 ## 🚀 快速开始
 
-### 配置 MCP
+### 安装
 
-在 MCP 配置文件中添加：
+```bash
+npm install -g claude-team
+```
 
-**Claude Code** (`~/.claude/config.json`) / **Windsurf** (`~/.codeium/windsurf/mcp_config.json`):
+或直接使用 npx（无需安装）：
 
-#### 双模型配置
+```bash
+npx claude-team
+```
+
+---
+
+## 📖 Claude Code 详细配置教程
+
+### 步骤 1：找到配置文件
+
+打开配置文件 `~/.claude/config.json`：
+
+```bash
+# macOS/Linux
+open ~/.claude/config.json
+
+# 或手动创建
+mkdir -p ~/.claude && touch ~/.claude/config.json
+```
+
+### 步骤 2：添加 MCP 配置
+
+编辑 `config.json`，添加以下内容：
+
+#### 基础配置（双模型）
 
 ```json
 {
   "mcpServers": {
     "claude-team": {
       "command": "npx",
-      "args": ["-y", "github:7836246/claude-team-mcp"],
+      "args": ["-y", "claude-team"],
       "env": {
-        "CLAUDE_TEAM_MAIN_KEY": "sk-xxx",
+        "CLAUDE_TEAM_MAIN_KEY": "sk-your-api-key",
         "CLAUDE_TEAM_MAIN_URL": "https://api.openai.com/v1",
         "CLAUDE_TEAM_MAIN_MODEL": "gpt-4o",
         
-        "CLAUDE_TEAM_MODEL1_KEY": "sk-yyy",
-        "CLAUDE_TEAM_MODEL1_URL": "https://api2.com/v1",
-        "CLAUDE_TEAM_MODEL1_NAME": "claude-3-sonnet"
+        "CLAUDE_TEAM_MODEL1_NAME": "gpt-3.5-turbo"
       }
     }
   }
 }
 ```
 
-#### 三模型配置（推荐）
+#### 推荐配置（三模型协作）
 
 ```json
 {
   "mcpServers": {
     "claude-team": {
       "command": "npx",
-      "args": ["-y", "github:7836246/claude-team-mcp"],
+      "args": ["-y", "claude-team"],
       "env": {
-        "CLAUDE_TEAM_MAIN_KEY": "sk-main",
+        "CLAUDE_TEAM_MAIN_KEY": "sk-your-main-key",
         "CLAUDE_TEAM_MAIN_URL": "https://api.openai.com/v1",
         "CLAUDE_TEAM_MAIN_MODEL": "gpt-4o",
         
-        "CLAUDE_TEAM_MODEL1_KEY": "sk-model1",
-        "CLAUDE_TEAM_MODEL1_URL": "https://api1.com/v1",
+        "CLAUDE_TEAM_MODEL1_KEY": "sk-your-model1-key",
+        "CLAUDE_TEAM_MODEL1_URL": "https://api.anthropic.com/v1",
         "CLAUDE_TEAM_MODEL1_NAME": "claude-3-sonnet",
         
-        "CLAUDE_TEAM_MODEL2_KEY": "sk-model2",
-        "CLAUDE_TEAM_MODEL2_URL": "https://api2.com/v1",
+        "CLAUDE_TEAM_MODEL2_KEY": "sk-your-model2-key",
+        "CLAUDE_TEAM_MODEL2_URL": "https://generativelanguage.googleapis.com/v1",
         "CLAUDE_TEAM_MODEL2_NAME": "gemini-pro"
       }
     }
@@ -71,35 +95,69 @@
 }
 ```
 
-#### 中转 API 示例（同一个中转服务，多个模型）
+#### 中转 API 配置（同一服务多模型）
 
 ```json
 {
-  "env": {
-    "CLAUDE_TEAM_MAIN_KEY": "your-proxy-key",
-    "CLAUDE_TEAM_MAIN_URL": "https://your-proxy.com/v1",
-    "CLAUDE_TEAM_MAIN_MODEL": "gpt-4o",
-    
-    "CLAUDE_TEAM_MODEL1_NAME": "gpt-3.5-turbo",
-    "CLAUDE_TEAM_MODEL2_NAME": "claude-3-haiku"
+  "mcpServers": {
+    "claude-team": {
+      "command": "npx",
+      "args": ["-y", "claude-team"],
+      "env": {
+        "CLAUDE_TEAM_MAIN_KEY": "your-proxy-key",
+        "CLAUDE_TEAM_MAIN_URL": "https://your-proxy.com/v1",
+        "CLAUDE_TEAM_MAIN_MODEL": "gpt-4o",
+        
+        "CLAUDE_TEAM_MODEL1_NAME": "gpt-3.5-turbo",
+        "CLAUDE_TEAM_MODEL2_NAME": "claude-3-haiku"
+      }
+    }
   }
 }
 ```
 
 > 💡 如果 MODEL1/2/3 没有单独的 KEY 和 URL，会自动使用 MAIN 的配置
 
-### 配置说明
+### 步骤 3：重启 Claude Code
+
+配置完成后，重启 Claude Code 使配置生效。
+
+### 步骤 4：开始使用
+
+在 Claude Code 中直接对话：
+
+```
+> 帮我用团队协作完成一个用户登录功能
+```
+
+```
+> 让团队帮我优化这段代码的性能
+```
+
+---
+
+## 🔧 Windsurf / Cursor 配置
+
+配置文件位置：
+- **Windsurf**: `~/.codeium/windsurf/mcp_config.json`
+- **Cursor**: `~/.cursor/mcp.json`
+
+配置格式与 Claude Code 相同。
+
+---
+
+## ⚙️ 配置说明
 
 | 环境变量 | 必需 | 说明 |
 |---------|------|------|
 | `CLAUDE_TEAM_MAIN_KEY` | ✅ | 主模型 API Key |
 | `CLAUDE_TEAM_MAIN_URL` | ❌ | 主模型 API 地址 |
 | `CLAUDE_TEAM_MAIN_MODEL` | ❌ | 主模型 ID（默认 gpt-4o） |
-| `CLAUDE_TEAM_MODEL1_KEY` | ❌ | 模型1 API Key（默认用 MAIN 的） |
-| `CLAUDE_TEAM_MODEL1_URL` | ❌ | 模型1 API 地址（默认用 MAIN 的） |
-| `CLAUDE_TEAM_MODEL1_NAME` | ❌ | 模型1 ID |
-| `CLAUDE_TEAM_MODEL2_*` | ❌ | 模型2 配置... |
-| `CLAUDE_TEAM_MODEL3_*` | ❌ | 模型3 配置... |
+| `CLAUDE_TEAM_MODEL{N}_KEY` | ❌ | 模型N API Key（默认用 MAIN 的） |
+| `CLAUDE_TEAM_MODEL{N}_URL` | ❌ | 模型N API 地址（默认用 MAIN 的） |
+| `CLAUDE_TEAM_MODEL{N}_NAME` | ❌ | 模型N ID |
+
+> N = 1, 2, 3... 最多支持 10 个工作模型
 
 ### 模型角色
 
@@ -177,21 +235,6 @@ claude-team init --advanced
 | `fast` | 简单、快速任务 | 格式化、简单查询、文档生成 |
 | `balanced` | 常规开发任务 | 组件开发、API 实现、单元测试 |
 | `powerful` | 复杂推理任务 | 架构设计、性能优化、安全审计 |
-
-## 🔧 全部环境变量
-
-### 多模型配置
-
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `CLAUDE_TEAM_MAIN_KEY` | 主模型 API Key | - |
-| `CLAUDE_TEAM_MAIN_URL` | 主模型 API 地址 | - |
-| `CLAUDE_TEAM_MAIN_MODEL` | 主模型 ID | `gpt-4o` |
-| `CLAUDE_TEAM_MODEL{N}_KEY` | 模型N API Key | 同 MAIN |
-| `CLAUDE_TEAM_MODEL{N}_URL` | 模型N API 地址 | 同 MAIN |
-| `CLAUDE_TEAM_MODEL{N}_NAME` | 模型N ID | - |
-
-> N = 1, 2, 3... 最多支持 10 个工作模型
 
 ## 🤝 Contributing
 
