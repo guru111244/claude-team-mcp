@@ -23,7 +23,7 @@
 
 **Claude Code** (`~/.claude/config.json`) / **Windsurf** (`~/.codeium/windsurf/mcp_config.json`):
 
-#### 单模型配置（最简单）
+#### 双模型配置
 
 ```json
 {
@@ -32,68 +32,81 @@
       "command": "npx",
       "args": ["-y", "github:7836246/claude-team-mcp"],
       "env": {
-        "CLAUDE_TEAM_LEAD_KEY": "sk-xxx",
-        "CLAUDE_TEAM_LEAD_URL": "https://api.openai.com/v1",
-        "CLAUDE_TEAM_LEAD_MODEL": "gpt-4o"
-      }
-    }
-  }
-}
-```
-
-#### 双模型配置（推荐，省钱）
-
-Lead 用好模型分析任务，Expert 用便宜模型执行：
-
-```json
-{
-  "mcpServers": {
-    "claude-team": {
-      "command": "npx",
-      "args": ["-y", "github:7836246/claude-team-mcp"],
-      "env": {
-        "CLAUDE_TEAM_LEAD_KEY": "sk-xxx",
-        "CLAUDE_TEAM_LEAD_URL": "https://api.openai.com/v1",
-        "CLAUDE_TEAM_LEAD_MODEL": "gpt-4o",
+        "CLAUDE_TEAM_MAIN_KEY": "sk-xxx",
+        "CLAUDE_TEAM_MAIN_URL": "https://api.openai.com/v1",
+        "CLAUDE_TEAM_MAIN_MODEL": "gpt-4o",
         
-        "CLAUDE_TEAM_EXPERT_KEY": "sk-yyy",
-        "CLAUDE_TEAM_EXPERT_URL": "https://cheap-api.com/v1",
-        "CLAUDE_TEAM_EXPERT_MODEL": "gpt-3.5-turbo"
+        "CLAUDE_TEAM_MODEL1_KEY": "sk-yyy",
+        "CLAUDE_TEAM_MODEL1_URL": "https://api2.com/v1",
+        "CLAUDE_TEAM_MODEL1_NAME": "claude-3-sonnet"
       }
     }
   }
 }
 ```
 
-#### 中转 API 示例
+#### 三模型配置（推荐）
+
+```json
+{
+  "mcpServers": {
+    "claude-team": {
+      "command": "npx",
+      "args": ["-y", "github:7836246/claude-team-mcp"],
+      "env": {
+        "CLAUDE_TEAM_MAIN_KEY": "sk-main",
+        "CLAUDE_TEAM_MAIN_URL": "https://api.openai.com/v1",
+        "CLAUDE_TEAM_MAIN_MODEL": "gpt-4o",
+        
+        "CLAUDE_TEAM_MODEL1_KEY": "sk-model1",
+        "CLAUDE_TEAM_MODEL1_URL": "https://api1.com/v1",
+        "CLAUDE_TEAM_MODEL1_NAME": "claude-3-sonnet",
+        
+        "CLAUDE_TEAM_MODEL2_KEY": "sk-model2",
+        "CLAUDE_TEAM_MODEL2_URL": "https://api2.com/v1",
+        "CLAUDE_TEAM_MODEL2_NAME": "gemini-pro"
+      }
+    }
+  }
+}
+```
+
+#### 中转 API 示例（同一个中转服务，多个模型）
 
 ```json
 {
   "env": {
-    "CLAUDE_TEAM_LEAD_KEY": "your-proxy-key",
-    "CLAUDE_TEAM_LEAD_URL": "https://your-proxy.com/v1",
-    "CLAUDE_TEAM_LEAD_MODEL": "gpt-4-turbo"
+    "CLAUDE_TEAM_MAIN_KEY": "your-proxy-key",
+    "CLAUDE_TEAM_MAIN_URL": "https://your-proxy.com/v1",
+    "CLAUDE_TEAM_MAIN_MODEL": "gpt-4o",
+    
+    "CLAUDE_TEAM_MODEL1_NAME": "gpt-3.5-turbo",
+    "CLAUDE_TEAM_MODEL2_NAME": "claude-3-haiku"
   }
 }
 ```
+
+> 💡 如果 MODEL1/2/3 没有单独的 KEY 和 URL，会自动使用 MAIN 的配置
 
 ### 配置说明
 
 | 环境变量 | 必需 | 说明 |
 |---------|------|------|
-| `CLAUDE_TEAM_LEAD_KEY` | ✅ | Lead 模型的 API Key |
-| `CLAUDE_TEAM_LEAD_URL` | ❌ | Lead 模型的 API 地址 |
-| `CLAUDE_TEAM_LEAD_MODEL` | ❌ | Lead 模型 ID（默认 gpt-4o） |
-| `CLAUDE_TEAM_EXPERT_KEY` | ❌ | Expert 模型的 API Key（默认用 Lead 的） |
-| `CLAUDE_TEAM_EXPERT_URL` | ❌ | Expert 模型的 API 地址 |
-| `CLAUDE_TEAM_EXPERT_MODEL` | ❌ | Expert 模型 ID |
+| `CLAUDE_TEAM_MAIN_KEY` | ✅ | 主模型 API Key |
+| `CLAUDE_TEAM_MAIN_URL` | ❌ | 主模型 API 地址 |
+| `CLAUDE_TEAM_MAIN_MODEL` | ❌ | 主模型 ID（默认 gpt-4o） |
+| `CLAUDE_TEAM_MODEL1_KEY` | ❌ | 模型1 API Key（默认用 MAIN 的） |
+| `CLAUDE_TEAM_MODEL1_URL` | ❌ | 模型1 API 地址（默认用 MAIN 的） |
+| `CLAUDE_TEAM_MODEL1_NAME` | ❌ | 模型1 ID |
+| `CLAUDE_TEAM_MODEL2_*` | ❌ | 模型2 配置... |
+| `CLAUDE_TEAM_MODEL3_*` | ❌ | 模型3 配置... |
 
-### 角色说明
+### 模型角色
 
-| 角色 | 用途 | 建议 |
-|------|------|------|
-| **Lead** | 分析任务、分配专家、最终审查 | 用聪明的模型（如 gpt-4o） |
-| **Expert** | 执行具体开发任务 | 可以用便宜快速的模型 |
+| 模型 | 用途 |
+|------|------|
+| **MAIN** | 主模型：分析任务、分配工作、也参与执行 |
+| **MODEL1/2/3...** | 工作模型：各自执行擅长的任务 |
 
 ---
 
@@ -167,16 +180,18 @@ claude-team init --advanced
 
 ## 🔧 全部环境变量
 
-### 角色模型配置（推荐）
+### 多模型配置
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `CLAUDE_TEAM_LEAD_KEY` | Lead API Key | - |
-| `CLAUDE_TEAM_LEAD_URL` | Lead API 地址 | - |
-| `CLAUDE_TEAM_LEAD_MODEL` | Lead 模型 ID | `gpt-4o` |
-| `CLAUDE_TEAM_EXPERT_KEY` | Expert API Key | 同 Lead |
-| `CLAUDE_TEAM_EXPERT_URL` | Expert API 地址 | 同 Lead |
-| `CLAUDE_TEAM_EXPERT_MODEL` | Expert 模型 ID | 同 Lead |
+| `CLAUDE_TEAM_MAIN_KEY` | 主模型 API Key | - |
+| `CLAUDE_TEAM_MAIN_URL` | 主模型 API 地址 | - |
+| `CLAUDE_TEAM_MAIN_MODEL` | 主模型 ID | `gpt-4o` |
+| `CLAUDE_TEAM_MODEL{N}_KEY` | 模型N API Key | 同 MAIN |
+| `CLAUDE_TEAM_MODEL{N}_URL` | 模型N API 地址 | 同 MAIN |
+| `CLAUDE_TEAM_MODEL{N}_NAME` | 模型N ID | - |
+
+> N = 1, 2, 3... 最多支持 10 个工作模型
 
 ## 🤝 Contributing
 

@@ -50,61 +50,70 @@ const DEFAULT_MODELS: Record<Provider, { model: string; tier: 'fast' | 'balanced
 };
 
 /**
- * 角色模型配置（适合中转 API）
+ * 多模型配置（适合中转 API）
+ * 
+ * 支持配置多个模型：
+ * - MAIN: 主模型，负责分析任务、分配工作，也可参与执行
+ * - MODEL1, MODEL2, MODEL3...: 工作模型，各自执行擅长的任务
  */
-interface RoleModelConfig {
+interface MultiModelConfig {
   apiKey: string;
   baseUrl?: string;
   model: string;
+  name: string;
 }
 
 /**
- * 解析角色模型配置
+ * 解析多模型配置
  * 
  * 支持的环境变量：
- * - CLAUDE_TEAM_LEAD_KEY: Lead 模型的 API Key
- * - CLAUDE_TEAM_LEAD_URL: Lead 模型的 API 地址
- * - CLAUDE_TEAM_LEAD_MODEL: Lead 模型 ID（默认 gpt-4o）
+ * - CLAUDE_TEAM_MAIN_KEY: 主模型 API Key
+ * - CLAUDE_TEAM_MAIN_URL: 主模型 API 地址
+ * - CLAUDE_TEAM_MAIN_MODEL: 主模型 ID（默认 gpt-4o）
  * 
- * - CLAUDE_TEAM_EXPERT_KEY: Expert 模型的 API Key（可选，默认用 Lead 的）
- * - CLAUDE_TEAM_EXPERT_URL: Expert 模型的 API 地址（可选）
- * - CLAUDE_TEAM_EXPERT_MODEL: Expert 模型 ID（可选）
+ * - CLAUDE_TEAM_MODEL1_KEY: 模型1 API Key
+ * - CLAUDE_TEAM_MODEL1_URL: 模型1 API 地址
+ * - CLAUDE_TEAM_MODEL1_NAME: 模型1 ID
+ * 
+ * - CLAUDE_TEAM_MODEL2_KEY/URL/NAME: 模型2...
+ * - CLAUDE_TEAM_MODEL3_KEY/URL/NAME: 模型3...
  */
-interface RoleBasedConfig {
-  lead: RoleModelConfig;
-  expert?: RoleModelConfig;
+interface MultiModelSetup {
+  main: MultiModelConfig;
+  models: MultiModelConfig[];
 }
 
-function parseRoleBasedConfig(): RoleBasedConfig | null {
-  const leadKey = process.env.CLAUDE_TEAM_LEAD_KEY;
-  if (!leadKey) return null;
+function parseMultiModelConfig(): MultiModelSetup | null {
+  const mainKey = process.env.CLAUDE_TEAM_MAIN_KEY;
+  if (!mainKey) return null;
   
-  const lead: RoleModelConfig = {
-    apiKey: leadKey,
-    baseUrl: process.env.CLAUDE_TEAM_LEAD_URL,
-    model: process.env.CLAUDE_TEAM_LEAD_MODEL || 'gpt-4o',
+  const main: MultiModelConfig = {
+    apiKey: mainKey,
+    baseUrl: process.env.CLAUDE_TEAM_MAIN_URL,
+    model: process.env.CLAUDE_TEAM_MAIN_MODEL || 'gpt-4o',
+    name: 'main',
   };
   
-  // Expert 配置（可选，默认使用 Lead 配置）
-  const expertKey = process.env.CLAUDE_TEAM_EXPERT_KEY;
-  let expert: RoleModelConfig | undefined;
+  // 解析工作模型 MODEL1, MODEL2, MODEL3...
+  const models: MultiModelConfig[] = [];
   
-  if (expertKey) {
-    expert = {
-      apiKey: expertKey,
-      baseUrl: process.env.CLAUDE_TEAM_EXPERT_URL,
-      model: process.env.CLAUDE_TEAM_EXPERT_MODEL || lead.model,
-    };
-  } else if (process.env.CLAUDE_TEAM_EXPERT_URL || process.env.CLAUDE_TEAM_EXPERT_MODEL) {
-    // 如果指定了 Expert 的 URL 或 Model，但没有单独的 Key，则使用 Lead 的 Key
-    expert = {
-      apiKey: leadKey,
-      baseUrl: process.env.CLAUDE_TEAM_EXPERT_URL || lead.baseUrl,
-      model: process.env.CLAUDE_TEAM_EXPERT_MODEL || lead.model,
-    };
+  for (let i = 1; i <= 10; i++) {
+    const key = process.env[`CLAUDE_TEAM_MODEL${i}_KEY`];
+    const url = process.env[`CLAUDE_TEAM_MODEL${i}_URL`];
+    const name = process.env[`CLAUDE_TEAM_MODEL${i}_NAME`];
+    
+    // 如果有 KEY 或 NAME，则添加模型
+    if (key || name) {
+      models.push({
+        apiKey: key || mainKey, // 没有独立 Key 则使用主模型的
+        baseUrl: url || main.baseUrl, // 没有独立 URL 则使用主模型的
+        model: name || main.model,
+        name: `model${i}`,
+      });
+    }
   }
   
-  return { lead, expert };
+  return { main, models };
 }
 
 /**
@@ -169,62 +178,67 @@ function detectAvailableProviders(): Provider[] {
 }
 
 /**
- * 生成角色模型配置
- * 支持 LEAD/EXPERT 分离配置
+ * 生成多模型配置
+ * 支持 MAIN + MODEL1/2/3... 多模型协作
  * @returns 自动生成的配置
  */
-function generateRoleBasedConfig(): Config | null {
-  const roleConfig = parseRoleBasedConfig();
-  if (!roleConfig) return null;
+function generateMultiModelConfig(): Config | null {
+  const multiConfig = parseMultiModelConfig();
+  if (!multiConfig) return null;
   
-  const { lead, expert } = roleConfig;
+  const { main, models: workModels } = multiConfig;
   
-  // 设置 OpenAI 环境变量（所有中转都走 OpenAI 兼容接口）
-  process.env.OPENAI_API_KEY = lead.apiKey;
-  if (lead.baseUrl) {
-    process.env.OPENAI_BASE_URL = lead.baseUrl;
+  // 设置主模型环境变量
+  process.env.OPENAI_API_KEY = main.apiKey;
+  if (main.baseUrl) {
+    process.env.OPENAI_BASE_URL = main.baseUrl;
   }
   
   // 构建模型配置
   const models: Config['models'] = {};
   
-  // Lead 模型
-  models['lead'] = {
+  // 主模型（也可参与任务执行）
+  models['main'] = {
     provider: 'openai',
-    model: lead.model,
-    baseUrl: lead.baseUrl,
+    model: main.model,
+    baseUrl: main.baseUrl,
     temperature: 0.3,
     maxTokens: 8192,
     tier: 'powerful',
   };
   
-  // Expert 模型
-  const expertConfig = expert || lead;
-  models['expert'] = {
-    provider: 'openai',
-    model: expertConfig.model,
-    baseUrl: expertConfig.baseUrl,
-    temperature: 0.7,
-    maxTokens: 8192,
-    tier: 'balanced',
-  };
-  
-  // 如果 Expert 有独立的 Key，设置专用环境变量
-  if (expert && expert.apiKey !== lead.apiKey) {
-    process.env.OPENAI_API_KEY_EXPERT = expert.apiKey;
+  // 工作模型
+  for (const workModel of workModels) {
+    models[workModel.name] = {
+      provider: 'openai',
+      model: workModel.model,
+      baseUrl: workModel.baseUrl,
+      temperature: 0.7,
+      maxTokens: 8192,
+      tier: 'balanced',
+    };
+    
+    // 如果有独立的 Key，设置专用环境变量
+    if (workModel.apiKey !== main.apiKey) {
+      process.env[`OPENAI_API_KEY_${workModel.name.toUpperCase()}`] = workModel.apiKey;
+    }
   }
+  
+  // 构建模型池
+  const allModelNames = ['main', ...workModels.map(m => m.name)];
+  const modelPool = {
+    fast: allModelNames[1] || 'main',
+    balanced: allModelNames[Math.floor(allModelNames.length / 2)] || 'main',
+    powerful: 'main',
+  };
   
   return {
     lead: {
-      model: 'lead',
+      model: 'main',
       temperature: 0.3,
     },
     models,
-    modelPool: {
-      fast: 'expert',
-      balanced: 'expert',
-      powerful: 'lead',
-    },
+    modelPool,
     collaboration: {
       maxIterations: 5,
       autoReview: true,
@@ -239,9 +253,9 @@ function generateRoleBasedConfig(): Config | null {
  * @returns 自动生成的配置
  */
 function generateQuickStartConfig(): Config | null {
-  // 优先使用角色模型配置
-  const roleConfig = generateRoleBasedConfig();
-  if (roleConfig) return roleConfig;
+  // 优先使用多模型配置
+  const multiConfig = generateMultiModelConfig();
+  if (multiConfig) return multiConfig;
   
   const available = detectAvailableProviders();
   
