@@ -11,6 +11,7 @@ import type { Config } from '../config/schema.js';
 import { CollaborationSpace, type Message } from './space.js';
 import { TaskCache } from './cache.js';
 import { ModelStrategy } from './strategy.js';
+import pLimit from 'p-limit';
 
 /**
  * 进度回调函数类型
@@ -33,6 +34,8 @@ export interface OrchestratorConfig {
   readonly enableCache?: boolean;
   /** 启用备用模型 */
   readonly enableFallback?: boolean;
+  /** 最大并发数（默认 3） */
+  readonly maxConcurrency?: number;
 }
 
 /**
@@ -70,6 +73,8 @@ export class Orchestrator {
   private readonly strategy: ModelStrategy;
   /** 启用备用模型 */
   private readonly enableFallback: boolean;
+  /** 并发限制器 */
+  private readonly limit: ReturnType<typeof pLimit>;
 
   /**
    * 创建编排器
@@ -84,6 +89,7 @@ export class Orchestrator {
     this.cache = new TaskCache({ enabled: config.enableCache ?? true });
     this.strategy = ModelStrategy.fromEnv();
     this.enableFallback = config.enableFallback ?? true;
+    this.limit = pLimit(config.maxConcurrency ?? 3);
   }
 
   /**
@@ -272,30 +278,32 @@ export class Orchestrator {
   }
 
   /**
-   * 并行执行所有任务
+   * 并行执行所有任务（带并发限制）
    */
   private async executeParallel(
     subtasks: readonly SubTask[],
     experts: Map<string, Expert>
   ): Promise<ExpertOutput[]> {
-    const tasks = subtasks.map(async (subtask, index) => {
-      const expert = experts.get(subtask.expertId);
-      if (!expert) {
-        this.space.publish('system', `专家 ${subtask.expertId} 不存在，跳过`, 'info');
-        return null;
-      }
+    const tasks = subtasks.map((subtask, index) => 
+      this.limit(async () => {
+        const expert = experts.get(subtask.expertId);
+        if (!expert) {
+          this.space.publish('system', `专家 ${subtask.expertId} 不存在，跳过`, 'info');
+          return null;
+        }
 
-      this.reportProgress(`🔄 [${index + 1}/${subtasks.length}] ${expert.name} 正在执行任务...`);
-      
-      const output = await expert.execute(
-        subtask.description,
-        this.space.buildContext(subtask.expertId)
-      );
+        this.reportProgress(`🔄 [${index + 1}/${subtasks.length}] ${expert.name} 正在执行任务...`);
+        
+        const output = await expert.execute(
+          subtask.description,
+          this.space.buildContext(subtask.expertId)
+        );
 
-      this.reportProgress(`✓ ${expert.name} 完成任务`);
-      this.space.publish(subtask.expertId, output.content, 'output');
-      return output;
-    });
+        this.reportProgress(`✓ ${expert.name} 完成任务`);
+        this.space.publish(subtask.expertId, output.content, 'output');
+        return output;
+      })
+    );
 
     const results = await Promise.all(tasks);
     return results.filter((r): r is ExpertOutput => r !== null);

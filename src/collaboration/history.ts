@@ -3,7 +3,7 @@
  * 持久化保存和查询协作历史
  */
 
-import { writeFileSync, readFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 /** 任务预览最大长度 */
@@ -276,5 +276,85 @@ export class HistoryManager {
 
     lines.push('\n使用 `history_get` 工具查看详情，传入 ID 即可。');
     return lines.join('\n');
+  }
+
+  /**
+   * 清理旧历史记录
+   * @param options - 清理选项
+   * @returns 删除的记录数
+   */
+  cleanup(options: {
+    /** 保留最近 N 条记录 */
+    keepRecent?: number;
+    /** 删除超过 N 天的记录 */
+    olderThanDays?: number;
+  } = {}): number {
+    const { keepRecent = 100, olderThanDays } = options;
+    
+    if (!existsSync(this.historyDir)) {
+      return 0;
+    }
+
+    const files = readdirSync(this.historyDir)
+      .filter((f) => f.endsWith('.json'))
+      .sort()
+      .reverse();
+
+    let deleted = 0;
+    const now = Date.now();
+    const maxAge = olderThanDays ? olderThanDays * 24 * 60 * 60 * 1000 : null;
+
+    files.forEach((file, index) => {
+      const filePath = join(this.historyDir, file);
+      let shouldDelete = false;
+
+      // 超出保留数量
+      if (index >= keepRecent) {
+        shouldDelete = true;
+      }
+
+      // 超出保留天数
+      if (maxAge) {
+        try {
+          const stat = statSync(filePath);
+          if (now - stat.mtimeMs > maxAge) {
+            shouldDelete = true;
+          }
+        } catch {
+          // 忽略错误
+        }
+      }
+
+      if (shouldDelete) {
+        try {
+          unlinkSync(filePath);
+          deleted++;
+        } catch {
+          // 忽略删除错误
+        }
+      }
+    });
+
+    return deleted;
+  }
+
+  /**
+   * 删除单条历史记录
+   * @param id - 记录 ID
+   * @returns 是否删除成功
+   */
+  delete(id: string): boolean {
+    const filePath = join(this.historyDir, `${id}.json`);
+    
+    if (!existsSync(filePath)) {
+      return false;
+    }
+
+    try {
+      unlinkSync(filePath);
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
