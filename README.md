@@ -1,6 +1,6 @@
 # Claude Team
 
-> 🤖 **动态多智能体协作** MCP Server，让 Claude Code / Windsurf / Cursor 拥有一支 AI 开发团队
+> 🤖 **让 Claude Code / Windsurf / Cursor 同时使用 GPT、Claude、Gemini 等多个模型协作完成任务**
 
 [![npm version](https://img.shields.io/npm/v/claude-team.svg)](https://www.npmjs.com/package/claude-team)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
