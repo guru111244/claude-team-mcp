@@ -207,7 +207,6 @@ export class TemplateManager {
    * 格式化模板列表
    */
   formatList(): string {
-    const templates = this.getAll();
     const lines = ['## 📋 专家模板\n'];
 
     lines.push('### 内置模板\n');

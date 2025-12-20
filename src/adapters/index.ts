@@ -10,7 +10,7 @@ export * from './openai.js';
 export * from './fallback.js';
 export * from './streaming.js';
 
-import type { ModelAdapter, ModelConfig, ModelProvider } from './base.js';
+import type { ModelAdapter, ModelConfig } from './base.js';
 import { GeminiAdapter } from './gemini.js';
 import { ClaudeAdapter } from './claude.js';
 import { OpenAIAdapter } from './openai.js';

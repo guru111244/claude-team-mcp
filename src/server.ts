@@ -12,9 +12,8 @@ import {
 
 import { loadConfig } from './config/loader.js';
 import { createAdapter } from './adapters/index.js';
-import { Expert } from './agents/expert.js';
 import { TechLead } from './agents/tech-lead.js';
-import { Orchestrator, type TeamResult, type ProgressCallback } from './collaboration/orchestrator.js';
+import { Orchestrator, type TeamResult } from './collaboration/orchestrator.js';
 import { HistoryManager } from './collaboration/history.js';
 import { globalStats } from './collaboration/stats.js';
 import { createRequire } from 'node:module';

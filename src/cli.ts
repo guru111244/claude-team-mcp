@@ -86,7 +86,7 @@ async function init(): Promise<void> {
     mkdirSync(claudeConfigDir, { recursive: true });
   }
 
-  let claudeConfig: any = {};
+  let claudeConfig: { mcpServers?: Record<string, unknown> } = {};
   if (existsSync(claudeConfigFile)) {
     try {
       claudeConfig = JSON.parse(readFileSync(claudeConfigFile, 'utf-8'));

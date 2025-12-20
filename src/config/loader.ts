@@ -399,7 +399,7 @@ function parseEnvModels(): Record<string, EnvModelConfig> {
  *
  * @returns 专家模型配置映射
  */
-function parseEnvExperts(): Record<string, { model: string }> {
+export function parseEnvExperts(): Record<string, { model: string }> {
   const experts: Record<string, { model: string }> = {};
 
   for (const [key, value] of Object.entries(process.env)) {
