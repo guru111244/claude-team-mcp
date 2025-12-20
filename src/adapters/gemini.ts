@@ -71,4 +71,45 @@ export class GeminiAdapter extends BaseAdapter {
     const result = await chat.sendMessage(lastMessage.content);
     return result.response.text();
   }
+
+  /**
+   * 流式输出
+   * @param messages - 聊天消息列表
+   * @yields 逐块输出的内容
+   */
+  async *stream(messages: ChatMessage[]): AsyncGenerator<string> {
+    const model = this.client.getGenerativeModel({
+      model: this.config.model,
+      generationConfig: {
+        temperature: this.temperature,
+        maxOutputTokens: this.maxTokens,
+      },
+    });
+
+    const systemMessage = messages.find((m) => m.role === 'system');
+    const chatMessages = messages.filter((m) => m.role !== 'system');
+
+    const history: Content[] = chatMessages.slice(0, -1).map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
+
+    const chat = model.startChat({
+      history,
+      systemInstruction: systemMessage?.content,
+    });
+
+    const lastMessage = chatMessages.at(-1);
+    if (!lastMessage) {
+      throw new Error('消息列表不能为空');
+    }
+
+    const result = await chat.sendMessageStream(lastMessage.content);
+    for await (const chunk of result.stream) {
+      const text = chunk.text();
+      if (text) {
+        yield text;
+      }
+    }
+  }
 }

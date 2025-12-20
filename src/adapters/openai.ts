@@ -60,4 +60,31 @@ export class OpenAIAdapter extends BaseAdapter {
     // 提取回复内容
     return response.choices.at(0)?.message?.content ?? '';
   }
+
+  /**
+   * 流式输出
+   * @param messages - 聊天消息列表
+   * @yields 逐块输出的内容
+   */
+  async *stream(messages: ChatMessage[]): AsyncGenerator<string> {
+    const formattedMessages: ChatCompletionMessageParam[] = messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    const stream = await this.client.chat.completions.create({
+      model: this.config.model,
+      messages: formattedMessages,
+      temperature: this.temperature,
+      max_tokens: this.maxTokens,
+      stream: true,
+    });
+
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content;
+      if (content) {
+        yield content;
+      }
+    }
+  }
 }

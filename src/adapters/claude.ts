@@ -65,4 +65,33 @@ export class ClaudeAdapter extends BaseAdapter {
 
     return textBlock?.text ?? '';
   }
+
+  /**
+   * 流式输出
+   * @param messages - 聊天消息列表
+   * @yields 逐块输出的内容
+   */
+  async *stream(messages: ChatMessage[]): AsyncGenerator<string> {
+    const systemMessage = messages.find((m) => m.role === 'system');
+    const chatMessages: MessageParam[] = messages
+      .filter((m) => m.role !== 'system')
+      .map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      }));
+
+    const stream = this.client.messages.stream({
+      model: this.config.model,
+      max_tokens: this.maxTokens,
+      temperature: this.temperature,
+      system: systemMessage?.content,
+      messages: chatMessages,
+    });
+
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        yield event.delta.text;
+      }
+    }
+  }
 }
