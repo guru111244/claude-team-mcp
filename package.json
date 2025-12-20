@@ -1,6 +1,6 @@
 {
   "name": "claude-team",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Multi-agent MCP Server for Claude Code, Windsurf, Cursor - AI development team collaboration",
   "main": "dist/index.js",
   "bin": {

@@ -104,12 +104,23 @@ export class Orchestrator {
   }
 
   /**
+   * 获取模型名称
+   */
+  private getModelNameByTier(tier: ModelTier): string {
+    const modelName = this.config.modelPool[tier];
+    const modelConfig = this.config.models[modelName];
+    return modelConfig?.model || modelName;
+  }
+
+  /**
    * 动态创建专家实例
    * @param expertDef - 专家定义
    * @returns Expert 实例
    */
   private createExpert(expertDef: DynamicExpert): Expert {
     const adapter = this.getAdapterByTier(expertDef.tier);
+    const modelName = this.getModelNameByTier(expertDef.tier);
+    this.reportProgress(`👤 创建专家: ${expertDef.name} → 使用模型: ${modelName}`);
 
     return new Expert(
       {
@@ -145,7 +156,6 @@ export class Orchestrator {
     for (const expertDef of analysis.experts) {
       experts.set(expertDef.id, this.createExpert(expertDef));
       this.space.publish('system', `创建专家: ${expertDef.name} (${expertDef.tier})`, 'info');
-      this.reportProgress(`👤 创建专家: ${expertDef.name}`, 25);
     }
 
     // 执行任务
@@ -207,18 +217,21 @@ export class Orchestrator {
     subtasks: readonly SubTask[],
     experts: Map<string, Expert>
   ): Promise<ExpertOutput[]> {
-    const tasks = subtasks.map(async (subtask) => {
+    const tasks = subtasks.map(async (subtask, index) => {
       const expert = experts.get(subtask.expertId);
       if (!expert) {
         this.space.publish('system', `专家 ${subtask.expertId} 不存在，跳过`, 'info');
         return null;
       }
 
+      this.reportProgress(`🔄 [${index + 1}/${subtasks.length}] ${expert.name} 正在执行任务...`);
+      
       const output = await expert.execute(
         subtask.description,
         this.space.buildContext(subtask.expertId)
       );
 
+      this.reportProgress(`✓ ${expert.name} 完成任务`);
       this.space.publish(subtask.expertId, output.content, 'output');
       return output;
     });
@@ -238,7 +251,8 @@ export class Orchestrator {
     const completed = new Set<string>();
     const sortedTasks = this.topologicalSort(subtasks);
 
-    for (const subtask of sortedTasks) {
+    for (let i = 0; i < sortedTasks.length; i++) {
+      const subtask = sortedTasks[i];
       const canExecute = subtask.dependencies.every((dep) => completed.has(dep));
       if (!canExecute) {
         this.space.publish('system', `任务 ${subtask.id} 依赖未满足，跳过`, 'info');
@@ -251,11 +265,14 @@ export class Orchestrator {
         continue;
       }
 
+      this.reportProgress(`🔄 [${i + 1}/${sortedTasks.length}] ${expert.name} 正在执行任务...`);
+      
       const output = await expert.execute(
         subtask.description,
         this.space.buildContext(subtask.expertId)
       );
 
+      this.reportProgress(`✓ ${expert.name} 完成任务`);
       this.space.publish(subtask.expertId, output.content, 'output');
       outputs.push(output);
       completed.add(subtask.id);
