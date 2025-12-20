@@ -4,7 +4,10 @@ node_modules/
 # Build output
 dist/
 
-# Logs
+# 文档
+docs/
+
+# 日志
 *.log
 npm-debug.log*
 
