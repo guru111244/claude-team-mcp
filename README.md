@@ -17,71 +17,83 @@
 
 ## 🚀 快速开始
 
-### 方式一：直接配置 MCP（推荐）
+### 配置 MCP
 
-在 MCP 配置文件中添加（无需安装）：
+在 MCP 配置文件中添加：
 
-**Claude Code** (`~/.claude/config.json`):
+**Claude Code** (`~/.claude/config.json`) / **Windsurf** (`~/.codeium/windsurf/mcp_config.json`):
+
+#### 单模型配置（最简单）
+
 ```json
 {
   "mcpServers": {
     "claude-team": {
       "command": "npx",
-      "args": ["-y", "claude-team"],
+      "args": ["-y", "github:7836246/claude-team-mcp"],
       "env": {
-        "CLAUDE_TEAM_API_KEY": "sk-xxx",
-        "CLAUDE_TEAM_BASE_URL": "https://api.openai.com/v1",
-        "CLAUDE_TEAM_MODEL": "gpt-4o"
+        "CLAUDE_TEAM_LEAD_KEY": "sk-xxx",
+        "CLAUDE_TEAM_LEAD_URL": "https://api.openai.com/v1",
+        "CLAUDE_TEAM_LEAD_MODEL": "gpt-4o"
       }
     }
   }
 }
 ```
 
-**Windsurf** (`~/.codeium/windsurf/mcp_config.json`):
+#### 双模型配置（推荐，省钱）
+
+Lead 用好模型分析任务，Expert 用便宜模型执行：
+
 ```json
 {
   "mcpServers": {
     "claude-team": {
       "command": "npx",
-      "args": ["-y", "claude-team"],
+      "args": ["-y", "github:7836246/claude-team-mcp"],
       "env": {
-        "CLAUDE_TEAM_API_KEY": "sk-xxx",
-        "CLAUDE_TEAM_BASE_URL": "https://your-proxy.com/v1",
-        "CLAUDE_TEAM_MODEL": "gpt-4o"
+        "CLAUDE_TEAM_LEAD_KEY": "sk-xxx",
+        "CLAUDE_TEAM_LEAD_URL": "https://api.openai.com/v1",
+        "CLAUDE_TEAM_LEAD_MODEL": "gpt-4o",
+        
+        "CLAUDE_TEAM_EXPERT_KEY": "sk-yyy",
+        "CLAUDE_TEAM_EXPERT_URL": "https://cheap-api.com/v1",
+        "CLAUDE_TEAM_EXPERT_MODEL": "gpt-3.5-turbo"
       }
     }
   }
 }
 ```
 
-### 方式二：全局安装
+#### 中转 API 示例
 
-```bash
-npm install -g claude-team
-claude-team init
+```json
+{
+  "env": {
+    "CLAUDE_TEAM_LEAD_KEY": "your-proxy-key",
+    "CLAUDE_TEAM_LEAD_URL": "https://your-proxy.com/v1",
+    "CLAUDE_TEAM_LEAD_MODEL": "gpt-4-turbo"
+  }
+}
 ```
 
 ### 配置说明
 
 | 环境变量 | 必需 | 说明 |
 |---------|------|------|
-| `CLAUDE_TEAM_API_KEY` | ✅ | API Key |
-| `CLAUDE_TEAM_BASE_URL` | ❌ | API 地址（支持中转） |
-| `CLAUDE_TEAM_MODEL` | ❌ | 模型 ID（默认 gpt-4o） |
-| `CLAUDE_TEAM_PROVIDER` | ❌ | 提供商：openai/gemini/anthropic（默认 openai） |
+| `CLAUDE_TEAM_LEAD_KEY` | ✅ | Lead 模型的 API Key |
+| `CLAUDE_TEAM_LEAD_URL` | ❌ | Lead 模型的 API 地址 |
+| `CLAUDE_TEAM_LEAD_MODEL` | ❌ | Lead 模型 ID（默认 gpt-4o） |
+| `CLAUDE_TEAM_EXPERT_KEY` | ❌ | Expert 模型的 API Key（默认用 Lead 的） |
+| `CLAUDE_TEAM_EXPERT_URL` | ❌ | Expert 模型的 API 地址 |
+| `CLAUDE_TEAM_EXPERT_MODEL` | ❌ | Expert 模型 ID |
 
-### 中转 API 示例
+### 角色说明
 
-```json
-{
-  "env": {
-    "CLAUDE_TEAM_API_KEY": "your-key",
-    "CLAUDE_TEAM_BASE_URL": "https://your-proxy.com/v1",
-    "CLAUDE_TEAM_MODEL": "gpt-4-turbo"
-  }
-}
-```
+| 角色 | 用途 | 建议 |
+|------|------|------|
+| **Lead** | 分析任务、分配专家、最终审查 | 用聪明的模型（如 gpt-4o） |
+| **Expert** | 执行具体开发任务 | 可以用便宜快速的模型 |
 
 ---
 
@@ -155,22 +167,16 @@ claude-team init --advanced
 
 ## 🔧 全部环境变量
 
-### 简化配置（推荐）
+### 角色模型配置（推荐）
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `CLAUDE_TEAM_API_KEY` | API Key | - |
-| `CLAUDE_TEAM_BASE_URL` | API 地址（中转） | - |
-| `CLAUDE_TEAM_MODEL` | 模型 ID | `gpt-4o` |
-| `CLAUDE_TEAM_PROVIDER` | 提供商 | `openai` |
-
-### 多模型配置
-
-| 变量 | 说明 |
-|------|------|
-| `OPENAI_API_KEY` | OpenAI API Key |
-| `GEMINI_API_KEY` | Google Gemini API Key |
-| `ANTHROPIC_API_KEY` | Anthropic API Key |
+| `CLAUDE_TEAM_LEAD_KEY` | Lead API Key | - |
+| `CLAUDE_TEAM_LEAD_URL` | Lead API 地址 | - |
+| `CLAUDE_TEAM_LEAD_MODEL` | Lead 模型 ID | `gpt-4o` |
+| `CLAUDE_TEAM_EXPERT_KEY` | Expert API Key | 同 Lead |
+| `CLAUDE_TEAM_EXPERT_URL` | Expert API 地址 | 同 Lead |
+| `CLAUDE_TEAM_EXPERT_MODEL` | Expert 模型 ID | 同 Lead |
 
 ## 🤝 Contributing
 

@@ -50,7 +50,65 @@ const DEFAULT_MODELS: Record<Provider, { model: string; tier: 'fast' | 'balanced
 };
 
 /**
- * 解析简化配置（适合中转 API）
+ * 角色模型配置（适合中转 API）
+ */
+interface RoleModelConfig {
+  apiKey: string;
+  baseUrl?: string;
+  model: string;
+}
+
+/**
+ * 解析角色模型配置
+ * 
+ * 支持的环境变量：
+ * - CLAUDE_TEAM_LEAD_KEY: Lead 模型的 API Key
+ * - CLAUDE_TEAM_LEAD_URL: Lead 模型的 API 地址
+ * - CLAUDE_TEAM_LEAD_MODEL: Lead 模型 ID（默认 gpt-4o）
+ * 
+ * - CLAUDE_TEAM_EXPERT_KEY: Expert 模型的 API Key（可选，默认用 Lead 的）
+ * - CLAUDE_TEAM_EXPERT_URL: Expert 模型的 API 地址（可选）
+ * - CLAUDE_TEAM_EXPERT_MODEL: Expert 模型 ID（可选）
+ */
+interface RoleBasedConfig {
+  lead: RoleModelConfig;
+  expert?: RoleModelConfig;
+}
+
+function parseRoleBasedConfig(): RoleBasedConfig | null {
+  const leadKey = process.env.CLAUDE_TEAM_LEAD_KEY;
+  if (!leadKey) return null;
+  
+  const lead: RoleModelConfig = {
+    apiKey: leadKey,
+    baseUrl: process.env.CLAUDE_TEAM_LEAD_URL,
+    model: process.env.CLAUDE_TEAM_LEAD_MODEL || 'gpt-4o',
+  };
+  
+  // Expert 配置（可选，默认使用 Lead 配置）
+  const expertKey = process.env.CLAUDE_TEAM_EXPERT_KEY;
+  let expert: RoleModelConfig | undefined;
+  
+  if (expertKey) {
+    expert = {
+      apiKey: expertKey,
+      baseUrl: process.env.CLAUDE_TEAM_EXPERT_URL,
+      model: process.env.CLAUDE_TEAM_EXPERT_MODEL || lead.model,
+    };
+  } else if (process.env.CLAUDE_TEAM_EXPERT_URL || process.env.CLAUDE_TEAM_EXPERT_MODEL) {
+    // 如果指定了 Expert 的 URL 或 Model，但没有单独的 Key，则使用 Lead 的 Key
+    expert = {
+      apiKey: leadKey,
+      baseUrl: process.env.CLAUDE_TEAM_EXPERT_URL || lead.baseUrl,
+      model: process.env.CLAUDE_TEAM_EXPERT_MODEL || lead.model,
+    };
+  }
+  
+  return { lead, expert };
+}
+
+/**
+ * 解析简化配置（向后兼容）
  * 
  * 支持的环境变量：
  * - CLAUDE_TEAM_API_KEY: API Key（必需）
@@ -111,11 +169,80 @@ function detectAvailableProviders(): Provider[] {
 }
 
 /**
+ * 生成角色模型配置
+ * 支持 LEAD/EXPERT 分离配置
+ * @returns 自动生成的配置
+ */
+function generateRoleBasedConfig(): Config | null {
+  const roleConfig = parseRoleBasedConfig();
+  if (!roleConfig) return null;
+  
+  const { lead, expert } = roleConfig;
+  
+  // 设置 OpenAI 环境变量（所有中转都走 OpenAI 兼容接口）
+  process.env.OPENAI_API_KEY = lead.apiKey;
+  if (lead.baseUrl) {
+    process.env.OPENAI_BASE_URL = lead.baseUrl;
+  }
+  
+  // 构建模型配置
+  const models: Config['models'] = {};
+  
+  // Lead 模型
+  models['lead'] = {
+    provider: 'openai',
+    model: lead.model,
+    baseUrl: lead.baseUrl,
+    temperature: 0.3,
+    maxTokens: 8192,
+    tier: 'powerful',
+  };
+  
+  // Expert 模型
+  const expertConfig = expert || lead;
+  models['expert'] = {
+    provider: 'openai',
+    model: expertConfig.model,
+    baseUrl: expertConfig.baseUrl,
+    temperature: 0.7,
+    maxTokens: 8192,
+    tier: 'balanced',
+  };
+  
+  // 如果 Expert 有独立的 Key，设置专用环境变量
+  if (expert && expert.apiKey !== lead.apiKey) {
+    process.env.OPENAI_API_KEY_EXPERT = expert.apiKey;
+  }
+  
+  return {
+    lead: {
+      model: 'lead',
+      temperature: 0.3,
+    },
+    models,
+    modelPool: {
+      fast: 'expert',
+      balanced: 'expert',
+      powerful: 'lead',
+    },
+    collaboration: {
+      maxIterations: 5,
+      autoReview: true,
+      verbose: false,
+    },
+  };
+}
+
+/**
  * 生成快速启动配置
  * 只需一个 API Key 即可运行
  * @returns 自动生成的配置
  */
 function generateQuickStartConfig(): Config | null {
+  // 优先使用角色模型配置
+  const roleConfig = generateRoleBasedConfig();
+  if (roleConfig) return roleConfig;
+  
   const available = detectAvailableProviders();
   
   if (available.length === 0) {
