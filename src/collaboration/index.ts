@@ -6,3 +6,4 @@ export * from './webhook.js';
 export * from './cache.js';
 export * from './strategy.js';
 export * from './stats.js';
+export * from './resumable.js';

@@ -8,6 +8,7 @@ export * from './gemini.js';
 export * from './claude.js';
 export * from './openai.js';
 export * from './fallback.js';
+export * from './streaming.js';
 
 import type { ModelAdapter, ModelConfig, ModelProvider } from './base.js';
 import { GeminiAdapter } from './gemini.js';
