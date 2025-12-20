@@ -16,6 +16,7 @@ import { Expert } from './agents/expert.js';
 import { TechLead } from './agents/tech-lead.js';
 import { Orchestrator, type TeamResult, type ProgressCallback } from './collaboration/orchestrator.js';
 import { HistoryManager } from './collaboration/history.js';
+import { globalStats } from './collaboration/stats.js';
 
 /** 服务器版本 */
 const SERVER_VERSION = '0.1.0';
@@ -195,6 +196,14 @@ export async function createServer(): Promise<Server> {
           },
         },
       },
+      {
+        name: 'usage_stats',
+        description: '查看各模型的使用统计（调用次数、成功率、平均耗时）',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
     ],
   }));
 
@@ -218,7 +227,16 @@ export async function createServer(): Promise<Server> {
             console.error(log);
           });
           
-          const result = await orchestrator.execute(task, context);
+          // 记录统计
+          const endTimer = globalStats.startTimer('team_work', 'orchestrator');
+          let result: TeamResult;
+          try {
+            result = await orchestrator.execute(task, context);
+            endTimer(true);
+          } catch (error) {
+            endTimer(false, (error as Error).message);
+            throw error;
+          }
           const duration = Date.now() - startTime;
 
           // 保存到历史记录
@@ -358,6 +376,17 @@ export async function createServer(): Promise<Server> {
               {
                 type: 'text',
                 text: `## 📚 最近的协作上下文\n\n${contextText}`,
+              },
+            ],
+          };
+        }
+
+        case 'usage_stats': {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: globalStats.formatStats(),
               },
             ],
           };
