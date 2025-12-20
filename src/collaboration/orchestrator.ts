@@ -11,6 +11,11 @@ import type { Config } from '../config/schema.js';
 import { CollaborationSpace, type Message } from './space.js';
 
 /**
+ * 进度回调函数类型
+ */
+export type ProgressCallback = (message: string, progress?: number) => void;
+
+/**
  * 编排器配置
  */
 export interface OrchestratorConfig {
@@ -20,6 +25,8 @@ export interface OrchestratorConfig {
   readonly config: Config;
   /** 最大迭代次数 */
   readonly maxIterations?: number;
+  /** 进度回调 */
+  readonly onProgress?: ProgressCallback;
 }
 
 /**
@@ -49,6 +56,8 @@ export class Orchestrator {
   private readonly space: CollaborationSpace;
   /** 最大迭代次数 */
   private readonly maxIterations: number;
+  /** 进度回调 */
+  private onProgress?: ProgressCallback;
 
   /**
    * 创建编排器
@@ -59,6 +68,23 @@ export class Orchestrator {
     this.config = config.config;
     this.space = new CollaborationSpace();
     this.maxIterations = config.maxIterations ?? 5;
+    this.onProgress = config.onProgress;
+  }
+
+  /**
+   * 设置进度回调
+   */
+  setProgressCallback(callback: ProgressCallback): void {
+    this.onProgress = callback;
+  }
+
+  /**
+   * 发送进度更新
+   */
+  private reportProgress(message: string, progress?: number): void {
+    if (this.onProgress) {
+      this.onProgress(message, progress);
+    }
   }
 
   /**
@@ -106,28 +132,34 @@ export class Orchestrator {
     // 清空协作空间
     this.space.clear();
     this.space.publish('system', `新任务: ${task}`, 'info');
+    this.reportProgress('🚀 开始任务分析...', 10);
 
     // Tech Lead 分析任务，动态生成专家
     const analysis = await this.lead.analyze(task, context);
     this.space.publish('tech-lead', `任务分析完成: ${analysis.summary}`, 'info');
     this.space.publish('tech-lead', `动态创建 ${analysis.experts.length} 位专家`, 'info');
+    this.reportProgress(`📋 任务分析完成，创建 ${analysis.experts.length} 位专家`, 20);
 
     // 动态创建专家实例
     const experts = new Map<string, Expert>();
     for (const expertDef of analysis.experts) {
       experts.set(expertDef.id, this.createExpert(expertDef));
       this.space.publish('system', `创建专家: ${expertDef.name} (${expertDef.tier})`, 'info');
+      this.reportProgress(`👤 创建专家: ${expertDef.name}`, 25);
     }
 
     // 执行任务
+    this.reportProgress(`⚡ 开始执行 ${analysis.subtasks.length} 个子任务...`, 30);
     const outputs = await this.executeWithExperts(
       analysis.subtasks,
       experts,
       analysis.workflow
     );
+    this.reportProgress(`✅ ${outputs.length} 个任务执行完成`, 80);
 
     // 如果需要审查，创建审查专家
     if (analysis.needsReview && outputs.length > 0) {
+      this.reportProgress('🔍 正在进行代码审查...', 85);
       const reviewOutput = await this.performReview(outputs);
       if (reviewOutput) {
         outputs.push(reviewOutput);
@@ -135,9 +167,11 @@ export class Orchestrator {
     }
 
     // Tech Lead 汇总结果
+    this.reportProgress('📝 正在汇总结果...', 90);
     const summary = await this.lead.summarize(
       outputs.map((o) => ({ expert: o.expertName, content: o.content }))
     );
+    this.reportProgress('🎉 任务完成！', 100);
 
     return {
       success: true,

@@ -14,7 +14,7 @@ import { loadConfig } from './config/loader.js';
 import { createAdapter } from './adapters/index.js';
 import { Expert } from './agents/expert.js';
 import { TechLead } from './agents/tech-lead.js';
-import { Orchestrator, type TeamResult } from './collaboration/orchestrator.js';
+import { Orchestrator, type TeamResult, type ProgressCallback } from './collaboration/orchestrator.js';
 import { HistoryManager } from './collaboration/history.js';
 
 /** 服务器版本 */
@@ -206,6 +206,18 @@ export async function createServer(): Promise<Server> {
         case 'team_work': {
           const { task, context } = args as { task: string; context?: string };
           const startTime = Date.now();
+          
+          // 收集进度信息
+          const progressLogs: string[] = [];
+          orchestrator.setProgressCallback((message, progress) => {
+            const timestamp = new Date().toLocaleTimeString();
+            const progressStr = progress ? ` (${progress}%)` : '';
+            const log = `[${timestamp}]${progressStr} ${message}`;
+            progressLogs.push(log);
+            // 同时输出到 stderr 以便调试
+            console.error(log);
+          });
+          
           const result = await orchestrator.execute(task, context);
           const duration = Date.now() - startTime;
 
@@ -227,11 +239,16 @@ export async function createServer(): Promise<Server> {
             duration,
           });
 
+          // 构建进度日志文本
+          const progressText = progressLogs.length > 0 
+            ? `\n\n---\n📊 **执行过程**:\n${progressLogs.join('\n')}\n⏱️ 总耗时: ${(duration / 1000).toFixed(1)}s`
+            : '';
+          
           return {
             content: [
               {
                 type: 'text',
-                text: formatTeamResult(result) + `\n\n---\n📝 **历史记录 ID**: \`${historyEntry.id}\``,
+                text: formatTeamResult(result) + progressText + `\n\n---\n📝 **历史记录 ID**: \`${historyEntry.id}\``,
               },
             ],
           };
