@@ -17,9 +17,11 @@ import { TechLead } from './agents/tech-lead.js';
 import { Orchestrator, type TeamResult, type ProgressCallback } from './collaboration/orchestrator.js';
 import { HistoryManager } from './collaboration/history.js';
 import { globalStats } from './collaboration/stats.js';
+import { createRequire } from 'node:module';
 
-/** 服务器版本 */
-const SERVER_VERSION = '0.1.0';
+/** 从 package.json 读取版本号 */
+const require = createRequire(import.meta.url);
+const { version: SERVER_VERSION } = require('../package.json');
 
 /**
  * 创建 Tech Lead 实例
