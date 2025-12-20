@@ -6,9 +6,11 @@
 import { Expert, type ExpertOutput } from '../agents/expert.js';
 import type { TechLead, SubTask, DynamicExpert, ModelTier } from '../agents/tech-lead.js';
 import type { ModelAdapter } from '../adapters/base.js';
-import { createAdapter } from '../adapters/index.js';
+import { createAdapter, FallbackAdapter } from '../adapters/index.js';
 import type { Config } from '../config/schema.js';
 import { CollaborationSpace, type Message } from './space.js';
+import { TaskCache } from './cache.js';
+import { ModelStrategy } from './strategy.js';
 
 /**
  * 进度回调函数类型
@@ -27,6 +29,10 @@ export interface OrchestratorConfig {
   readonly maxIterations?: number;
   /** 进度回调 */
   readonly onProgress?: ProgressCallback;
+  /** 启用缓存 */
+  readonly enableCache?: boolean;
+  /** 启用备用模型 */
+  readonly enableFallback?: boolean;
 }
 
 /**
@@ -58,6 +64,12 @@ export class Orchestrator {
   private readonly maxIterations: number;
   /** 进度回调 */
   private onProgress?: ProgressCallback;
+  /** 任务缓存 */
+  private readonly cache: TaskCache;
+  /** 模型策略 */
+  private readonly strategy: ModelStrategy;
+  /** 启用备用模型 */
+  private readonly enableFallback: boolean;
 
   /**
    * 创建编排器
@@ -69,6 +81,9 @@ export class Orchestrator {
     this.space = new CollaborationSpace();
     this.maxIterations = config.maxIterations ?? 5;
     this.onProgress = config.onProgress;
+    this.cache = new TaskCache({ enabled: config.enableCache ?? true });
+    this.strategy = ModelStrategy.fromEnv();
+    this.enableFallback = config.enableFallback ?? true;
   }
 
   /**
@@ -100,7 +115,34 @@ export class Orchestrator {
       throw new Error(`模型池中 ${tier} 级别的模型 ${modelName} 未找到`);
     }
 
-    return createAdapter(modelConfig);
+    const primaryAdapter = createAdapter(modelConfig);
+
+    // 如果启用备用模型，创建 FallbackAdapter
+    if (this.enableFallback) {
+      const fallbackAdapters: ModelAdapter[] = [];
+      
+      // 收集其他级别的模型作为备用
+      const tiers: ModelTier[] = ['powerful', 'balanced', 'fast'];
+      for (const t of tiers) {
+        if (t === tier) continue;
+        const fallbackName = this.config.modelPool[t];
+        const fallbackConfig = this.config.models[fallbackName];
+        if (fallbackConfig && fallbackName !== modelName) {
+          fallbackAdapters.push(createAdapter(fallbackConfig));
+        }
+      }
+
+      if (fallbackAdapters.length > 0) {
+        return new FallbackAdapter({
+          primary: primaryAdapter,
+          fallbacks: fallbackAdapters,
+          maxRetries: 2,
+          onProgress: (msg) => this.reportProgress(msg),
+        });
+      }
+    }
+
+    return primaryAdapter;
   }
 
   /**
@@ -140,6 +182,22 @@ export class Orchestrator {
    * @returns 执行结果
    */
   async execute(task: string, context?: string): Promise<TeamResult> {
+    // 检查缓存
+    const cachedResult = this.cache.get(task, context);
+    if (cachedResult) {
+      this.reportProgress('💾 命中缓存，直接返回结果', 100);
+      return {
+        success: true,
+        summary: cachedResult,
+        outputs: [],
+        conversation: [],
+      };
+    }
+
+    // 检测任务类型并获取推荐模型
+    const recommendation = this.strategy.getRecommendedModel(task);
+    this.reportProgress(`📊 任务类型: ${recommendation.taskType} (${recommendation.reason})`, 5);
+
     // 清空协作空间
     this.space.clear();
     this.space.publish('system', `新任务: ${task}`, 'info');
@@ -182,6 +240,9 @@ export class Orchestrator {
       outputs.map((o) => ({ expert: o.expertName, content: o.content }))
     );
     this.reportProgress('🎉 任务完成！', 100);
+
+    // 缓存结果
+    this.cache.set(task, summary, context);
 
     return {
       success: true,
