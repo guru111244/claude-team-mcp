@@ -61,6 +61,7 @@ interface MultiModelConfig {
   baseUrl?: string;
   model: string;
   name: string;
+  provider?: Provider;
 }
 
 /**
@@ -70,13 +71,15 @@ interface MultiModelConfig {
  * - CLAUDE_TEAM_MAIN_KEY: 主模型 API Key
  * - CLAUDE_TEAM_MAIN_URL: 主模型 API 地址
  * - CLAUDE_TEAM_MAIN_MODEL: 主模型 ID（默认 gpt-4o）
+ * - CLAUDE_TEAM_MAIN_PROVIDER: 主模型响应格式（可选，openai/anthropic/gemini，默认 openai）
  * 
  * - CLAUDE_TEAM_MODEL1_KEY: 模型1 API Key
  * - CLAUDE_TEAM_MODEL1_URL: 模型1 API 地址
  * - CLAUDE_TEAM_MODEL1_NAME: 模型1 ID
+ * - CLAUDE_TEAM_MODEL1_PROVIDER: 模型1 响应格式（可选）
  * 
- * - CLAUDE_TEAM_MODEL2_KEY/URL/NAME: 模型2...
- * - CLAUDE_TEAM_MODEL3_KEY/URL/NAME: 模型3...
+ * - CLAUDE_TEAM_MODEL2_KEY/URL/NAME/PROVIDER: 模型2...
+ * - CLAUDE_TEAM_MODEL3_KEY/URL/NAME/PROVIDER: 模型3...
  */
 interface MultiModelSetup {
   main: MultiModelConfig;
@@ -92,6 +95,7 @@ function parseMultiModelConfig(): MultiModelSetup | null {
     baseUrl: process.env.CLAUDE_TEAM_MAIN_URL,
     model: process.env.CLAUDE_TEAM_MAIN_MODEL || 'gpt-4o',
     name: 'main',
+    provider: (process.env.CLAUDE_TEAM_MAIN_PROVIDER as Provider) || 'openai',
   };
   
   // 解析工作模型 MODEL1, MODEL2, MODEL3...
@@ -101,6 +105,7 @@ function parseMultiModelConfig(): MultiModelSetup | null {
     const key = process.env[`CLAUDE_TEAM_MODEL${i}_KEY`];
     const url = process.env[`CLAUDE_TEAM_MODEL${i}_URL`];
     const name = process.env[`CLAUDE_TEAM_MODEL${i}_NAME`];
+    const provider = process.env[`CLAUDE_TEAM_MODEL${i}_PROVIDER`] as Provider | undefined;
     
     // 如果有 KEY 或 NAME，则添加模型
     if (key || name) {
@@ -109,6 +114,7 @@ function parseMultiModelConfig(): MultiModelSetup | null {
         baseUrl: url || main.baseUrl, // 没有独立 URL 则使用主模型的
         model: name || main.model,
         name: `model${i}`,
+        provider: provider || main.provider, // 没有独立 Provider 则使用主模型的
       });
     }
   }
@@ -199,7 +205,7 @@ function generateMultiModelConfig(): Config | null {
   
   // 主模型（也可参与任务执行）
   models['main'] = {
-    provider: 'openai',
+    provider: main.provider || 'openai',
     model: main.model,
     baseUrl: main.baseUrl,
     temperature: 0.3,
@@ -210,7 +216,7 @@ function generateMultiModelConfig(): Config | null {
   // 工作模型
   for (const workModel of workModels) {
     models[workModel.name] = {
-      provider: 'openai',
+      provider: workModel.provider || 'openai',
       model: workModel.model,
       baseUrl: workModel.baseUrl,
       temperature: 0.7,

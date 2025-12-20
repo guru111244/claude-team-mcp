@@ -61,6 +61,7 @@ mkdir -p ~/.claude && touch ~/.claude/config.json
         "CLAUDE_TEAM_MAIN_KEY": "sk-your-api-key",
         "CLAUDE_TEAM_MAIN_URL": "https://api.openai.com/v1",
         "CLAUDE_TEAM_MAIN_MODEL": "gpt-4o",
+        "CLAUDE_TEAM_MAIN_PROVIDER": "openai",
         
         "CLAUDE_TEAM_MODEL1_NAME": "gpt-3.5-turbo"
       }
@@ -81,14 +82,17 @@ mkdir -p ~/.claude && touch ~/.claude/config.json
         "CLAUDE_TEAM_MAIN_KEY": "sk-your-main-key",
         "CLAUDE_TEAM_MAIN_URL": "https://api.openai.com/v1",
         "CLAUDE_TEAM_MAIN_MODEL": "gpt-4o",
+        "CLAUDE_TEAM_MAIN_PROVIDER": "openai",
         
         "CLAUDE_TEAM_MODEL1_KEY": "sk-your-model1-key",
         "CLAUDE_TEAM_MODEL1_URL": "https://api.anthropic.com/v1",
         "CLAUDE_TEAM_MODEL1_NAME": "claude-3-sonnet",
+        "CLAUDE_TEAM_MODEL1_PROVIDER": "anthropic",
         
         "CLAUDE_TEAM_MODEL2_KEY": "sk-your-model2-key",
         "CLAUDE_TEAM_MODEL2_URL": "https://generativelanguage.googleapis.com/v1",
-        "CLAUDE_TEAM_MODEL2_NAME": "gemini-pro"
+        "CLAUDE_TEAM_MODEL2_NAME": "gemini-pro",
+        "CLAUDE_TEAM_MODEL2_PROVIDER": "gemini"
       }
     }
   }
@@ -107,16 +111,19 @@ mkdir -p ~/.claude && touch ~/.claude/config.json
         "CLAUDE_TEAM_MAIN_KEY": "your-proxy-key",
         "CLAUDE_TEAM_MAIN_URL": "https://your-proxy.com/v1",
         "CLAUDE_TEAM_MAIN_MODEL": "gpt-4o",
+        "CLAUDE_TEAM_MAIN_PROVIDER": "openai",
         
         "CLAUDE_TEAM_MODEL1_NAME": "gpt-3.5-turbo",
-        "CLAUDE_TEAM_MODEL2_NAME": "claude-3-haiku"
+        "CLAUDE_TEAM_MODEL2_NAME": "claude-3-haiku",
+        "CLAUDE_TEAM_MODEL2_PROVIDER": "anthropic"
       }
     }
   }
 }
 ```
 
-> 💡 如果 MODEL1/2/3 没有单独的 KEY 和 URL，会自动使用 MAIN 的配置
+> 💡 **PROVIDER 可选值**: `openai` | `anthropic` | `gemini`  
+> 💡 如果 MODEL1/2/3 没有单独配置，会自动继承 MAIN 的配置
 
 ### 步骤 3：重启 Claude Code
 
@@ -237,6 +244,9 @@ claude-team init --advanced
 | `powerful` | 复杂推理任务 | 架构设计、性能优化、安全审计 |
 
 ## 📦 更新日志
+
+### v0.2.3
+- 🎛️ **模型格式配置** - 支持指定 PROVIDER（openai/anthropic/gemini），适配不同中转服务
 
 ### v0.2.2
 - 🌊 **流式输出** - 所有适配器支持流式输出（OpenAI/Claude/Gemini）
