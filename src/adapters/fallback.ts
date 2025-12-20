@@ -89,13 +89,9 @@ export class FallbackAdapter implements ModelAdapter {
    * 获取适配器名称
    */
   private getAdapterName(adapter: ModelAdapter, index: number): string {
-    // 尝试获取模型名称
-    const anyAdapter = adapter as any;
-    if (anyAdapter.modelName) {
-      return anyAdapter.modelName;
-    }
-    if (anyAdapter.config?.model) {
-      return anyAdapter.config.model;
+    // 使用类型安全的元数据接口
+    if (adapter.modelName) {
+      return adapter.modelName;
     }
     return index === 0 ? '主模型' : `备用模型${index}`;
   }

@@ -6,7 +6,9 @@
 
 import { writeFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { parse } from 'yaml';
 import { startServer } from './server.js';
+import { ConfigSchema } from './config/schema.js';
 
 /** 命令行参数 */
 const [command, subCommand] = process.argv.slice(2);
@@ -25,9 +27,10 @@ Claude Team - 多智能体协作 MCP Server
   claude-team              启动 MCP 服务（自动检测 API Key）
   claude-team init         初始化配置（可选，用于自定义）
   claude-team check        检查配置状态
+  claude-team validate     验证配置文件语法和完整性
   claude-team serve        启动 MCP 服务
 
-更多信息: https://github.com/your-repo/claude-team
+更多信息: https://github.com/7836246/claude-team-mcp
 `;
 
 /**
@@ -45,8 +48,13 @@ async function main(): Promise<void> {
     case 'check':
       await check();
       break;
+    case 'validate':
+      await validate();
+      break;
     case 'serve':
     case undefined:
+      // 启动前检查环境变量
+      checkEnvAndWarn();
       await startServer();
       break;
     case '--help':
@@ -198,7 +206,110 @@ const API_KEYS = [
   ['GEMINI_API_KEY', 'Gemini'],
   ['ANTHROPIC_API_KEY', 'Anthropic'],
   ['OPENAI_API_KEY', 'OpenAI'],
+  ['CLAUDE_TEAM_MAIN_KEY', 'Claude Team Main'],
 ] as const;
+
+/**
+ * 验证配置文件语法和完整性
+ */
+async function validate(): Promise<void> {
+  console.log('🔍 验证 Claude Team 配置...\n');
+
+  const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
+  const configFile = join(homeDir, '.claude-team', 'config.yaml');
+
+  // 检查配置文件是否存在
+  if (!existsSync(configFile)) {
+    console.log(`ℹ️  配置文件不存在: ${configFile}`);
+    console.log('   系统将使用环境变量自动配置（快速启动模式）\n');
+    
+    // 验证环境变量配置
+    const hasMainKey = process.env.CLAUDE_TEAM_MAIN_KEY;
+    const hasAnyKey = API_KEYS.some(([key]) => process.env[key]);
+    
+    if (hasAnyKey) {
+      console.log('✅ 环境变量配置有效');
+      if (hasMainKey) {
+        console.log(`   主模型: ${process.env.CLAUDE_TEAM_MAIN_MODEL || 'gpt-4o'}`);
+        console.log(`   API URL: ${process.env.CLAUDE_TEAM_MAIN_URL || '(默认)'}`);
+      }
+    } else {
+      console.log('❌ 未检测到有效的 API Key 配置');
+      process.exit(1);
+    }
+    return;
+  }
+
+  // 读取并解析配置文件
+  try {
+    const content = readFileSync(configFile, 'utf-8');
+    console.log(`📄 配置文件: ${configFile}\n`);
+
+    // 解析 YAML
+    const rawConfig = parse(content);
+    console.log('✅ YAML 语法正确');
+
+    // 使用 Zod 验证
+    const result = ConfigSchema.safeParse(rawConfig);
+    
+    if (result.success) {
+      console.log('✅ 配置结构有效\n');
+      
+      // 显示配置摘要
+      console.log('📋 配置摘要:');
+      console.log(`   Tech Lead 模型: ${result.data.lead.model}`);
+      console.log(`   已配置模型数量: ${Object.keys(result.data.models).length}`);
+      console.log(`   模型池:`);
+      console.log(`     - fast: ${result.data.modelPool.fast}`);
+      console.log(`     - balanced: ${result.data.modelPool.balanced}`);
+      console.log(`     - powerful: ${result.data.modelPool.powerful}`);
+      
+      console.log('\n✨ 配置验证通过!');
+    } else {
+      console.log('❌ 配置验证失败:\n');
+      for (const error of result.error.errors) {
+        console.log(`   - ${error.path.join('.')}: ${error.message}`);
+      }
+      process.exit(1);
+    }
+  } catch (error) {
+    console.log(`❌ 配置文件解析失败: ${(error as Error).message}`);
+    process.exit(1);
+  }
+}
+
+/**
+ * 启动时检查环境变量并给出友好提示
+ */
+function checkEnvAndWarn(): void {
+  const hasMainKey = process.env.CLAUDE_TEAM_MAIN_KEY;
+  const hasAnyKey = API_KEYS.some(([key]) => process.env[key]);
+  
+  if (!hasAnyKey) {
+    console.error(`
+╔══════════════════════════════════════════════════════════════╗
+║  ⚠️  未检测到任何 API Key，服务可能无法正常工作              ║
+╚══════════════════════════════════════════════════════════════╝
+
+请设置以下环境变量之一:
+
+  # 方式 1: 使用中转 API（推荐）
+  export CLAUDE_TEAM_MAIN_KEY="your-api-key"
+  export CLAUDE_TEAM_MAIN_URL="https://your-proxy.com/v1"
+  export CLAUDE_TEAM_MAIN_MODEL="gpt-4o"
+
+  # 方式 2: 直接使用官方 API
+  export OPENAI_API_KEY="sk-xxx"
+  export GEMINI_API_KEY="xxx"
+  export ANTHROPIC_API_KEY="xxx"
+
+运行 'claude-team check' 查看详细配置状态
+`);
+  } else if (hasMainKey) {
+    const model = process.env.CLAUDE_TEAM_MAIN_MODEL || 'gpt-4o';
+    console.error(`✅ 使用主模型: ${model}`);
+  }
+}
 
 /**
  * 检查配置

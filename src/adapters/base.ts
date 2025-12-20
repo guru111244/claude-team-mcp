@@ -36,10 +36,21 @@ export interface ModelConfig {
 }
 
 /**
+ * 适配器元数据接口
+ * 用于类型安全地获取适配器信息
+ */
+export interface AdapterMetadata {
+  /** 模型名称 */
+  readonly modelName: string;
+  /** 提供商名称 */
+  readonly provider: string;
+}
+
+/**
  * 模型适配器接口
  * 所有模型适配器必须实现此接口
  */
-export interface ModelAdapter {
+export interface ModelAdapter extends Partial<AdapterMetadata> {
   /** 发送聊天请求 */
   chat(messages: ChatMessage[]): Promise<string>;
   /** 流式输出（可选） */
