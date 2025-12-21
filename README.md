@@ -118,7 +118,7 @@ Tech Lead Analysis →
 |------|-------------|
 | `team_work` | 🚀 Team collaboration (auto-creates experts) |
 | `ask_expert` | 💬 Consult an expert (supports custom experts) |
-| `code_review` | �� Code review |
+| `code_review` | 🔍 Code review |
 | `fix_bug` | 🐛 Bug fixing |
 
 ### Workflow Tools
