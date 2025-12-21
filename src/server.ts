@@ -9,14 +9,69 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { loadConfig } from './config/loader.js';
+import type { Config } from './config/schema.js';
 import { createAdapter } from './adapters/index.js';
 import { TechLead } from './agents/tech-lead.js';
 import { Orchestrator, type TeamResult } from './collaboration/orchestrator.js';
 import { HistoryManager } from './collaboration/history.js';
 import { globalStats } from './collaboration/stats.js';
+import { workflowManager } from './collaboration/workflow.js';
 import { createRequire } from 'node:module';
+
+/** 内置专家角色定义 */
+const BUILTIN_EXPERTS: Record<string, { name: string; role: string; tier: 'fast' | 'balanced' | 'powerful' }> = {
+  frontend: { 
+    name: '前端专家',
+    role: '你是一位资深前端工程师，精通 React、Vue、TypeScript、CSS 等前端技术。', 
+    tier: 'balanced' 
+  },
+  backend: { 
+    name: '后端专家',
+    role: '你是一位资深后端工程师，精通 API 设计、数据库、Node.js、Python 等后端技术。', 
+    tier: 'powerful' 
+  },
+  qa: { 
+    name: 'QA专家',
+    role: '你是一位资深 QA 工程师，擅长代码审查、测试、安全分析和 Bug 修复。', 
+    tier: 'balanced' 
+  },
+};
+
+/**
+ * 获取所有可用专家（内置 + 自定义）
+ */
+function getAllExperts(config: Config): Record<string, { name: string; role: string; tier: 'fast' | 'balanced' | 'powerful' }> {
+  const experts = { ...BUILTIN_EXPERTS };
+  
+  // 添加自定义专家
+  if (config.customExperts) {
+    for (const [id, custom] of Object.entries(config.customExperts)) {
+      experts[id] = {
+        name: custom.name,
+        role: custom.prompt,
+        tier: custom.tier || 'balanced',
+      };
+    }
+  }
+  
+  return experts;
+}
+
+/**
+ * 生成专家 enum 和描述
+ */
+function generateExpertEnumInfo(experts: Record<string, { name: string; role: string; tier: 'fast' | 'balanced' | 'powerful' }>): { enum: string[]; description: string } {
+  const ids = Object.keys(experts);
+  const descriptions = ids.map(id => `${id}(${experts[id].name})`);
+  return {
+    enum: ids,
+    description: `专家类型：${descriptions.join('、')}`,
+  };
+}
 
 /** 从 package.json 读取版本号 */
 const require = createRequire(import.meta.url);
@@ -58,6 +113,10 @@ export async function createServer(): Promise<Server> {
     { capabilities: { tools: {} } }
   );
 
+  // 获取所有可用专家（内置 + 自定义）
+  const allExperts = getAllExperts(config);
+  const expertEnumInfo = generateExpertEnumInfo(allExperts);
+
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
       {
@@ -87,8 +146,8 @@ export async function createServer(): Promise<Server> {
           properties: {
             expert: {
               type: 'string',
-              enum: ['frontend', 'backend', 'qa'],
-              description: '专家类型：frontend(前端)、backend(后端)、qa(质量保证)',
+              enum: expertEnumInfo.enum,
+              description: expertEnumInfo.description,
             },
             question: {
               type: 'string',
@@ -110,8 +169,8 @@ export async function createServer(): Promise<Server> {
             },
             reviewer: {
               type: 'string',
-              enum: ['frontend', 'backend', 'qa'],
-              description: '审查者：frontend(前端)、backend(后端)、qa(质量保证)',
+              enum: expertEnumInfo.enum,
+              description: `审查者：${expertEnumInfo.description}`,
             },
             context: {
               type: 'string',
@@ -205,6 +264,141 @@ export async function createServer(): Promise<Server> {
           properties: {},
         },
       },
+      {
+        name: 'team_dashboard',
+        description: '查看团队当前状态：可用专家、模型配置、最近活动',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'cost_estimate',
+        description: '预估任务执行成本（Token 用量、预计耗时）',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            task: {
+              type: 'string',
+              description: '要预估的任务描述',
+            },
+          },
+          required: ['task'],
+        },
+      },
+      {
+        name: 'explain_plan',
+        description: '解释 Tech Lead 会如何分配任务（不实际执行）',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            task: {
+              type: 'string',
+              description: '要分析的任务描述',
+            },
+          },
+          required: ['task'],
+        },
+      },
+      {
+        name: 'read_project_files',
+        description: '读取项目文件内容，让专家了解代码上下文',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: {
+              type: 'string',
+              description: '文件或目录路径（相对于当前工作目录）',
+            },
+            pattern: {
+              type: 'string',
+              description: '文件匹配模式（如 *.ts, *.js），仅读取目录时有效',
+            },
+            maxFiles: {
+              type: 'number',
+              description: '最多读取文件数（默认 10）',
+            },
+          },
+          required: ['path'],
+        },
+      },
+      {
+        name: 'generate_commit_message',
+        description: '根据代码变更生成 Git commit message',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            diff: {
+              type: 'string',
+              description: '代码变更内容（git diff 输出）',
+            },
+            style: {
+              type: 'string',
+              enum: ['conventional', 'simple', 'detailed'],
+              description: '提交信息风格：conventional(约定式)、simple(简洁)、detailed(详细)',
+            },
+          },
+          required: ['diff'],
+        },
+      },
+      {
+        name: 'analyze_project_structure',
+        description: '分析项目结构，识别技术栈和架构',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: {
+              type: 'string',
+              description: '项目根目录路径（默认当前目录）',
+            },
+          },
+        },
+      },
+      {
+        name: 'list_workflows',
+        description: '列出所有可用的工作流模板',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'run_workflow',
+        description: '使用指定工作流执行任务',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            workflow: {
+              type: 'string',
+              enum: ['code-generation', 'bug-fix', 'refactoring', 'code-review', 'documentation'],
+              description: '工作流 ID',
+            },
+            task: {
+              type: 'string',
+              description: '任务描述',
+            },
+            context: {
+              type: 'string',
+              description: '额外上下文（可选）',
+            },
+          },
+          required: ['workflow', 'task'],
+        },
+      },
+      {
+        name: 'suggest_workflow',
+        description: '根据任务自动推荐合适的工作流',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            task: {
+              type: 'string',
+              description: '任务描述',
+            },
+          },
+          required: ['task'],
+        },
+      },
     ],
   }));
 
@@ -275,25 +469,29 @@ export async function createServer(): Promise<Server> {
 
         case 'ask_expert': {
           const { expert, question } = args as { expert: string; question: string };
-          // 根据专家类型选择合适的角色和模型级别
-          const expertRoles: Record<string, { role: string; tier: 'fast' | 'balanced' | 'powerful' }> = {
-            frontend: { role: '你是一位资深前端工程师，精通 React、Vue、TypeScript、CSS 等前端技术。', tier: 'balanced' },
-            backend: { role: '你是一位资深后端工程师，精通 API 设计、数据库、Node.js、Python 等后端技术。', tier: 'powerful' },
-            qa: { role: '你是一位资深 QA 工程师，擅长代码审查、测试、安全分析和 Bug 修复。', tier: 'balanced' },
-          };
-          const expertConfig = expertRoles[expert] ?? { role: '你是一位技术专家。', tier: 'balanced' as const };
+          // 从动态专家列表中获取配置
+          const expertConfig = allExperts[expert] ?? { name: '技术专家', role: '你是一位技术专家。', tier: 'balanced' as const };
           const response = await orchestrator.askDynamicExpert(expertConfig.tier, expertConfig.role, question);
           return {
-            content: [{ type: 'text', text: response }],
+            content: [{ type: 'text', text: `**${expertConfig.name}** 回复：\n\n${response}` }],
           };
         }
 
         case 'code_review': {
-          const { code, context } = args as { code: string; context?: string };
-          const reviewRole = `你是一位资深代码审查专家。请审查以下代码，关注代码质量、潜在 Bug、安全问题和最佳实践。${context ? `\n背景: ${context}` : ''}`;
-          const review = await orchestrator.askDynamicExpert('balanced', reviewRole, `请审查以下代码:\n\n${code}`);
+          const { code, reviewer, context } = args as { code: string; reviewer?: string; context?: string };
+          // 如果指定了审查者，使用对应专家的角色
+          let reviewerConfig: { name: string; role: string; tier: 'fast' | 'balanced' | 'powerful' } = { 
+            name: '代码审查专家', 
+            role: '你是一位资深代码审查专家。', 
+            tier: 'balanced' 
+          };
+          if (reviewer && allExperts[reviewer]) {
+            reviewerConfig = allExperts[reviewer];
+          }
+          const reviewRole = `${reviewerConfig.role}\n\n请审查以下代码，关注代码质量、潜在 Bug、安全问题和最佳实践。${context ? `\n背景: ${context}` : ''}`;
+          const review = await orchestrator.askDynamicExpert(reviewerConfig.tier, reviewRole, `请审查以下代码:\n\n${code}`);
           return {
-            content: [{ type: 'text', text: review }],
+            content: [{ type: 'text', text: `**${reviewerConfig.name}** 审查结果：\n\n${review}` }],
           };
         }
 
@@ -391,6 +589,379 @@ export async function createServer(): Promise<Server> {
               },
             ],
           };
+        }
+
+        case 'team_dashboard': {
+          // 构建团队仪表盘信息
+          const expertList = Object.entries(allExperts)
+            .map(([id, e]) => `- **${e.name}** (\`${id}\`) - ${e.tier} 级别`)
+            .join('\n');
+          
+          const modelList = Object.entries(config.models)
+            .map(([name, m]) => `- **${name}**: ${m.model} (${m.provider}, ${m.tier || 'balanced'})`)
+            .join('\n');
+          
+          const recentHistory = historyManager.list(3);
+          const recentText = recentHistory.length > 0
+            ? recentHistory.map(h => `- ${h.task.slice(0, 50)}${h.task.length > 50 ? '...' : ''} (${new Date(h.timestamp).toLocaleString()})`).join('\n')
+            : '暂无记录';
+          
+          const stats = globalStats.getGlobalStats();
+          
+          const dashboard = `# 🎛️ 团队仪表盘
+
+## 👥 可用专家 (${Object.keys(allExperts).length} 个)
+${expertList}
+
+## 🤖 模型配置
+${modelList}
+
+## 📊 运行统计
+- 总调用次数: ${stats.totalCalls}
+- 成功率: ${stats.totalCalls > 0 ? ((stats.totalSuccess / stats.totalCalls) * 100).toFixed(1) : 0}%
+- 平均耗时: ${stats.avgDuration.toFixed(0)}ms
+
+## 📜 最近活动
+${recentText}`;
+
+          return {
+            content: [{ type: 'text', text: dashboard }],
+          };
+        }
+
+        case 'cost_estimate': {
+          const { task } = args as { task: string };
+          
+          // 简单的 token 估算（基于任务描述长度和复杂度）
+          const taskTokens = Math.ceil(task.length / 4); // 粗略估算输入 tokens
+          const isComplex = task.includes('优化') || task.includes('架构') || task.includes('重构') || task.includes('安全');
+          const estimatedExperts = isComplex ? 3 : 2;
+          const tokensPerExpert = isComplex ? 4000 : 2000;
+          
+          const estimatedInputTokens = taskTokens + (estimatedExperts * 500); // 系统提示词
+          const estimatedOutputTokens = estimatedExperts * tokensPerExpert;
+          const totalTokens = estimatedInputTokens + estimatedOutputTokens;
+          
+          // 费用估算（基于 GPT-4o 价格：$5/1M input, $15/1M output）
+          const inputCost = (estimatedInputTokens / 1000000) * 5;
+          const outputCost = (estimatedOutputTokens / 1000000) * 15;
+          const totalCost = inputCost + outputCost;
+          
+          // 耗时估算
+          const avgDuration = globalStats.getGlobalStats().avgDuration || 5000;
+          const estimatedTime = (avgDuration * estimatedExperts) / 1000;
+          
+          const estimate = `# 💰 成本预估
+
+## 任务分析
+- **任务描述**: ${task.slice(0, 100)}${task.length > 100 ? '...' : ''}
+- **复杂度**: ${isComplex ? '高' : '中'}
+- **预计专家数**: ${estimatedExperts} 个
+
+## Token 预估
+| 类型 | 数量 |
+|------|------|
+| 输入 Tokens | ~${estimatedInputTokens.toLocaleString()} |
+| 输出 Tokens | ~${estimatedOutputTokens.toLocaleString()} |
+| **总计** | **~${totalTokens.toLocaleString()}** |
+
+## 费用预估 (基于 GPT-4o)
+- 输入: $${inputCost.toFixed(4)}
+- 输出: $${outputCost.toFixed(4)}
+- **总计**: **$${totalCost.toFixed(4)}**
+
+## 时间预估
+- 预计耗时: ~${estimatedTime.toFixed(0)} 秒
+
+> ⚠️ 这是粗略估算，实际费用取决于模型选择和任务复杂度`;
+
+          return {
+            content: [{ type: 'text', text: estimate }],
+          };
+        }
+
+        case 'explain_plan': {
+          const { task } = args as { task: string };
+          
+          // 让 Tech Lead 分析任务但不执行
+          const analysis = await techLead.analyze(task);
+          
+          const expertPlan = analysis.experts
+            .map((e: { id: string; name: string; tier: string; role: string }, i: number) => {
+              const subtask = analysis.subtasks.find(t => t.expertId === e.id);
+              return `${i + 1}. **${e.name}** (${e.tier})\n   - 角色: ${e.role.slice(0, 100)}...\n   - 任务: ${subtask?.description || '待分配'}`;
+            })
+            .join('\n\n');
+          
+          const plan = `# 🧠 任务执行计划
+
+## 任务分析
+**原始任务**: ${task}
+
+## Tech Lead 分析结果
+
+### 工作流类型
+\`${analysis.workflow}\` ${analysis.workflow === 'sequential' ? '(顺序执行)' : analysis.workflow === 'parallel' ? '(并行执行)' : '(并行+审查)'}
+
+### 专家分配 (${analysis.experts.length} 个)
+${expertPlan}
+
+### 执行顺序
+${analysis.workflow === 'parallel' ? '所有专家将并行执行任务' : analysis.experts.map((e: { name: string }, i: number) => `${i + 1}. ${e.name}`).join(' → ')}
+
+---
+> 💡 这只是计划预览，使用 \`team_work\` 工具实际执行任务`;
+
+          return {
+            content: [{ type: 'text', text: plan }],
+          };
+        }
+
+        case 'read_project_files': {
+          const { path: targetPath, pattern, maxFiles = 10 } = args as { path: string; pattern?: string; maxFiles?: number };
+          const fullPath = join(process.cwd(), targetPath);
+          
+          if (!existsSync(fullPath)) {
+            throw new Error(`路径不存在: ${targetPath}`);
+          }
+          
+          const stat = statSync(fullPath);
+          let result = '';
+          
+          if (stat.isFile()) {
+            // 读取单个文件
+            const content = readFileSync(fullPath, 'utf-8');
+            result = `# 📄 ${targetPath}\n\n\`\`\`\n${content.slice(0, 10000)}${content.length > 10000 ? '\n... (内容已截断)' : ''}\n\`\`\``;
+          } else if (stat.isDirectory()) {
+            // 读取目录下的文件
+            const files = readdirSync(fullPath)
+              .filter(f => {
+                if (pattern) {
+                  const regex = new RegExp(pattern.replace('*', '.*'));
+                  return regex.test(f);
+                }
+                return true;
+              })
+              .slice(0, maxFiles);
+            
+            result = `# 📁 ${targetPath}\n\n`;
+            for (const file of files) {
+              const filePath = join(fullPath, file);
+              const fileStat = statSync(filePath);
+              if (fileStat.isFile()) {
+                const content = readFileSync(filePath, 'utf-8');
+                result += `## ${file}\n\`\`\`\n${content.slice(0, 3000)}${content.length > 3000 ? '\n... (内容已截断)' : ''}\n\`\`\`\n\n`;
+              }
+            }
+          }
+          
+          return {
+            content: [{ type: 'text', text: result }],
+          };
+        }
+
+        case 'generate_commit_message': {
+          const { diff, style = 'conventional' } = args as { diff: string; style?: string };
+          
+          const stylePrompts: Record<string, string> = {
+            conventional: '使用约定式提交格式：type(scope): description。type 可以是 feat/fix/docs/style/refactor/test/chore。',
+            simple: '使用简洁风格：一行描述主要变更。',
+            detailed: '使用详细风格：标题 + 空行 + 详细说明（列出所有变更点）。',
+          };
+          
+          const prompt = `请根据以下代码变更生成 Git commit message。
+
+${stylePrompts[style] || stylePrompts.conventional}
+
+代码变更：
+\`\`\`diff
+${diff.slice(0, 8000)}
+\`\`\`
+
+请只输出 commit message，不要其他内容。`;
+
+          const response = await orchestrator.askDynamicExpert('fast', '你是一位 Git 提交规范专家。', prompt);
+          
+          return {
+            content: [{ type: 'text', text: `# 📝 推荐的 Commit Message\n\n\`\`\`\n${response}\n\`\`\`` }],
+          };
+        }
+
+        case 'analyze_project_structure': {
+          const { path: projectPath = '.' } = args as { path?: string };
+          const fullPath = join(process.cwd(), projectPath);
+          
+          if (!existsSync(fullPath)) {
+            throw new Error(`路径不存在: ${projectPath}`);
+          }
+          
+          // 检测项目特征
+          const features: string[] = [];
+          const techStack: string[] = [];
+          
+          // 检测 package.json
+          const pkgPath = join(fullPath, 'package.json');
+          if (existsSync(pkgPath)) {
+            const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+            features.push('Node.js 项目');
+            
+            const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+            if (deps.react) techStack.push('React');
+            if (deps.vue) techStack.push('Vue');
+            if (deps.angular) techStack.push('Angular');
+            if (deps.next) techStack.push('Next.js');
+            if (deps.express) techStack.push('Express');
+            if (deps.nestjs || deps['@nestjs/core']) techStack.push('NestJS');
+            if (deps.typescript) techStack.push('TypeScript');
+            if (deps.tailwindcss) techStack.push('TailwindCSS');
+          }
+          
+          // 检测其他配置文件
+          if (existsSync(join(fullPath, 'tsconfig.json'))) features.push('TypeScript 配置');
+          if (existsSync(join(fullPath, 'docker-compose.yml')) || existsSync(join(fullPath, 'Dockerfile'))) features.push('Docker 支持');
+          if (existsSync(join(fullPath, '.github'))) features.push('GitHub Actions');
+          if (existsSync(join(fullPath, 'pyproject.toml')) || existsSync(join(fullPath, 'requirements.txt'))) features.push('Python 项目');
+          if (existsSync(join(fullPath, 'Cargo.toml'))) features.push('Rust 项目');
+          if (existsSync(join(fullPath, 'go.mod'))) features.push('Go 项目');
+          
+          // 统计目录结构
+          const dirs = readdirSync(fullPath).filter(f => {
+            const stat = statSync(join(fullPath, f));
+            return stat.isDirectory() && !f.startsWith('.') && f !== 'node_modules';
+          });
+          
+          const analysis = `# 🏗️ 项目结构分析
+
+## 项目类型
+${features.length > 0 ? features.map(f => `- ${f}`).join('\n') : '- 未识别'}
+
+## 技术栈
+${techStack.length > 0 ? techStack.map(t => `- ${t}`).join('\n') : '- 未检测到常用框架'}
+
+## 目录结构
+${dirs.map(d => `- 📁 ${d}/`).join('\n') || '- (空目录)'}
+
+## 建议
+${techStack.includes('React') ? '- 前端任务可分配给 **frontend** 专家' : ''}
+${techStack.includes('Express') || techStack.includes('NestJS') ? '- 后端任务可分配给 **backend** 专家' : ''}
+${features.includes('TypeScript 配置') ? '- 项目使用 TypeScript，专家应输出类型安全的代码' : ''}
+${features.includes('Docker 支持') ? '- 部署相关任务可考虑添加 **devops** 自定义专家' : ''}`;
+
+          return {
+            content: [{ type: 'text', text: analysis }],
+          };
+        }
+
+        case 'list_workflows': {
+          const workflows = workflowManager.listWorkflows();
+          const list = workflows.map(w => {
+            const stepsCount = w.steps.filter(s => s.type === 'expert').length;
+            return `### ${w.name} (\`${w.id}\`)
+${w.description}
+- **触发词**: ${w.triggers.join(', ')}
+- **步骤数**: ${stepsCount} 个专家步骤
+- **流程**: ${w.steps.filter(s => s.type === 'expert').map(s => s.name).join(' → ')}`;
+          }).join('\n\n');
+          
+          return {
+            content: [{ type: 'text', text: `# 📋 可用工作流模板\n\n${list}\n\n---\n> 使用 \`run_workflow\` 执行指定工作流，或使用 \`suggest_workflow\` 自动推荐` }],
+          };
+        }
+
+        case 'run_workflow': {
+          const { workflow: workflowId, task, context } = args as { workflow: string; task: string; context?: string };
+          
+          const workflow = workflowManager.getWorkflow(workflowId);
+          if (!workflow) {
+            throw new Error(`工作流不存在: ${workflowId}`);
+          }
+          
+          // 转换为 Tech Lead 格式
+          const { experts } = workflowManager.toTaskAnalysis(workflow, task);
+          
+          const startTime = Date.now();
+          const progressLogs: string[] = [];
+          orchestrator.setProgressCallback((message, progress) => {
+            const timestamp = new Date().toLocaleTimeString();
+            const progressStr = progress ? ` (${progress}%)` : '';
+            progressLogs.push(`[${timestamp}]${progressStr} ${message}`);
+          });
+          
+          // 使用工作流执行任务
+          progressLogs.push(`📋 使用工作流: ${workflow.name}`);
+          progressLogs.push(`👥 创建 ${experts.length} 位专家: ${experts.map((e: { name: string }) => e.name).join(', ')}`);
+          
+          const result = await orchestrator.execute(task, context);
+          const duration = Date.now() - startTime;
+          
+          // 保存到历史
+          historyManager.save({
+            task: `[${workflow.name}] ${task}`,
+            summary: result.summary,
+            experts: result.outputs.map(o => o.expertId),
+            outputs: result.outputs.map(o => ({
+              expertId: o.expertId,
+              expertName: o.expertName,
+              content: o.content,
+            })),
+            conversation: result.conversation.map(m => ({
+              from: m.from,
+              content: m.content,
+              type: m.type,
+            })),
+            duration,
+          });
+          
+          const progressText = `\n\n---\n📊 **执行过程**:\n${progressLogs.join('\n')}\n⏱️ 总耗时: ${(duration / 1000).toFixed(1)}s`;
+          
+          return {
+            content: [{ type: 'text', text: `# 🔄 ${workflow.name} 执行结果\n\n${result.summary}${progressText}` }],
+          };
+        }
+
+        case 'suggest_workflow': {
+          const { task } = args as { task: string };
+          
+          const matched = workflowManager.matchWorkflow(task);
+          
+          if (matched) {
+            const stepsDesc = matched.steps
+              .filter(s => s.type === 'expert')
+              .map((s, i) => `${i + 1}. **${s.name}** - ${s.expert?.role.slice(0, 50)}...`)
+              .join('\n');
+            
+            return {
+              content: [{ type: 'text', text: `# 💡 推荐工作流
+
+## ${matched.name} (\`${matched.id}\`)
+${matched.description}
+
+### 执行步骤
+${stepsDesc}
+
+### 触发原因
+任务包含关键词: ${matched.triggers.filter(t => task.toLowerCase().includes(t.toLowerCase())).join(', ')}
+
+---
+> 使用 \`run_workflow\` 执行此工作流：
+> \`{ "workflow": "${matched.id}", "task": "${task.slice(0, 50)}..." }\`` }],
+            };
+          } else {
+            return {
+              content: [{ type: 'text', text: `# 💡 工作流推荐
+
+未找到匹配的预定义工作流。
+
+**建议**: 使用 \`team_work\` 让 Tech Lead 动态分析任务并创建专家团队。
+
+**可用工作流**:
+- \`code-generation\` - 代码生成（写、创建、实现）
+- \`bug-fix\` - Bug 修复（修复、错误、fix）
+- \`refactoring\` - 代码重构（重构、优化）
+- \`code-review\` - 代码审查（审查、review）
+- \`documentation\` - 文档生成（文档、doc）` }],
+            };
+          }
         }
 
         default:

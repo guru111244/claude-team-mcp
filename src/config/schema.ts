@@ -53,6 +53,20 @@ export const ModelPoolSchema = z.object({
 });
 
 /**
+ * 自定义专家配置 Schema
+ */
+export const CustomExpertSchema = z.object({
+  /** 专家显示名称 */
+  name: z.string().min(1),
+  /** 专家角色描述（System Prompt） */
+  prompt: z.string().min(1),
+  /** 推荐模型级别 */
+  tier: z.enum(MODEL_TIERS).optional().default('balanced'),
+  /** 技能标签 */
+  skills: z.array(z.string()).optional().default([]),
+});
+
+/**
  * 协作配置 Schema
  */
 export const CollaborationConfigSchema = z.object({
@@ -76,6 +90,8 @@ export const ConfigSchema = z.object({
   modelPool: ModelPoolSchema,
   /** 协作配置 */
   collaboration: CollaborationConfigSchema.optional(),
+  /** 自定义专家配置 */
+  customExperts: z.record(z.string(), CustomExpertSchema).optional(),
 });
 
 /** 完整配置类型 */
@@ -95,3 +111,6 @@ export type CollaborationConfig = z.infer<typeof CollaborationConfigSchema>;
 
 /** 模型能力级别类型 */
 export type ModelTier = (typeof MODEL_TIERS)[number];
+
+/** 自定义专家配置类型 */
+export type CustomExpert = z.infer<typeof CustomExpertSchema>;

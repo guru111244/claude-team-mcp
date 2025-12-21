@@ -163,8 +163,38 @@ mkdir -p ~/.claude && touch ~/.claude/config.json
 | `CLAUDE_TEAM_MODEL{N}_KEY` | ❌ | 模型N API Key（默认用 MAIN 的） |
 | `CLAUDE_TEAM_MODEL{N}_URL` | ❌ | 模型N API 地址（默认用 MAIN 的） |
 | `CLAUDE_TEAM_MODEL{N}_NAME` | ❌ | 模型N ID |
+| `CLAUDE_TEAM_CUSTOM_EXPERTS` | ❌ | 自定义专家配置（JSON 格式） |
 
 > N = 1, 2, 3... 最多支持 10 个工作模型
+
+### 🎯 自定义专家
+
+除了内置的 `frontend`、`backend`、`qa` 专家，你可以定义自己的专家：
+
+```json
+{
+  "mcpServers": {
+    "claude-team": {
+      "command": "npx",
+      "args": ["-y", "claude-team"],
+      "env": {
+        "CLAUDE_TEAM_MAIN_KEY": "sk-your-key",
+        "CLAUDE_TEAM_CUSTOM_EXPERTS": "{\"rust\":{\"name\":\"Rust专家\",\"prompt\":\"你是Rust专家，精通Rust语言、内存安全、并发编程、cargo生态。\",\"tier\":\"powerful\"},\"k8s\":{\"name\":\"K8s专家\",\"prompt\":\"你是Kubernetes专家，精通容器编排、Helm、服务网格。\",\"tier\":\"balanced\"}}"
+      }
+    }
+  }
+}
+```
+
+配置后，`ask_expert` 和 `code_review` 工具会自动支持你定义的专家类型。
+
+**专家配置字段**：
+| 字段 | 必需 | 说明 |
+|------|------|------|
+| `name` | ✅ | 专家显示名称 |
+| `prompt` | ✅ | 专家角色描述（System Prompt） |
+| `tier` | ❌ | 模型级别：`fast`/`balanced`/`powerful`（默认 balanced） |
+| `skills` | ❌ | 技能标签数组 |
 
 ### 模型角色
 
@@ -201,9 +231,48 @@ Tech Lead 分析 →
 | 工具 | 描述 |
 |------|------|
 | `team_work` | 🚀 团队协作完成任务（自动创建专家） |
-| `ask_expert` | 💬 咨询专家（frontend/backend/qa） |
+| `ask_expert` | 💬 咨询专家（支持自定义专家） |
 | `code_review` | 🔍 代码审查 |
 | `fix_bug` | 🐛 Bug 修复 |
+
+### 📊 可观测性工具
+
+| 工具 | 描述 |
+|------|------|
+| `team_dashboard` | 🎛️ 查看团队状态：可用专家、模型配置、运行统计 |
+| `cost_estimate` | 💰 预估任务成本（Token 用量、费用、耗时） |
+| `explain_plan` | 🧠 预览 Tech Lead 的任务分配方案（不实际执行） |
+| `usage_stats` | 📈 查看各模型使用统计 |
+
+### 🔌 集成工具
+
+| 工具 | 描述 |
+|------|------|
+| `read_project_files` | 📄 读取项目文件，让专家了解代码上下文 |
+| `analyze_project_structure` | 🏗️ 分析项目结构，识别技术栈 |
+| `generate_commit_message` | 📝 根据 diff 生成 Git commit message |
+
+### 🔗 工作流工具
+
+| 工具 | 描述 |
+|------|------|
+| `list_workflows` | 📋 列出所有预定义工作流模板 |
+| `run_workflow` | ▶️ 使用指定工作流执行任务 |
+| `suggest_workflow` | 💡 根据任务自动推荐工作流 |
+
+**预定义工作流**:
+| 工作流 | 用途 | 步骤 |
+|--------|------|------|
+| `code-generation` | 从需求生成代码 | 架构设计 → 代码实现 → 测试 → 审查 |
+| `bug-fix` | 诊断和修复 Bug | 问题诊断 → 修复实现 → 验证 |
+| `refactoring` | 代码重构 | 代码分析 → 重构计划 → 执行 → 审查 |
+| `code-review` | 多维度代码审查 | 安全/质量/性能并行审查 |
+| `documentation` | 生成技术文档 | 代码分析 → 文档生成 |
+
+### 📜 历史记录
+
+| 工具 | 描述 |
+|------|------|
 | `history_list` | 📋 查看协作历史 |
 | `history_get` | 📄 获取历史详情 |
 | `history_search` | 🔎 搜索历史记录 |
@@ -244,6 +313,14 @@ claude-team init --advanced
 | `powerful` | 复杂推理任务 | 架构设计、性能优化、安全审计 |
 
 ## 📦 更新日志
+
+### v0.4.0
+- 🎯 **自定义专家** - 通过环境变量定义专家（Rust专家、K8s专家等）
+- 🔗 **工作流模板** - 5 个预定义工作流（代码生成、Bug修复、重构、审查、文档）
+- 📊 **可观测性** - team_dashboard / cost_estimate / explain_plan 工具
+- 🔌 **项目集成** - read_project_files / analyze_project_structure / generate_commit_message
+- 💡 **智能推荐** - suggest_workflow 根据任务自动推荐工作流
+- 🧪 **测试覆盖** - 155 个测试用例全覆盖
 
 ### v0.3.0
 - 🔄 **任务中断/恢复** - 长任务中断后可从历史恢复继续执行

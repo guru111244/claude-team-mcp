@@ -10,7 +10,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
-import { ConfigSchema, type Config } from './schema.js';
+import { ConfigSchema, CustomExpertSchema, type Config, type CustomExpert } from './schema.js';
 
 /** 模型提供商类型 */
 type Provider = 'gemini' | 'anthropic' | 'openai' | 'ollama';
@@ -32,6 +32,45 @@ const MODEL_ENV_PATTERN = /^CLAUDE_TEAM_MODEL_([A-Z0-9_]+)_(PROVIDER|MODEL|URL|K
 
 /** 专家环境变量匹配模式 */
 const EXPERT_ENV_PATTERN = /^CLAUDE_TEAM_EXPERT_([A-Z]+)_MODEL$/;
+
+/**
+ * 解析自定义专家配置
+ * 
+ * 支持的环境变量：
+ * - CLAUDE_TEAM_CUSTOM_EXPERTS: JSON 格式的自定义专家配置
+ * 
+ * 示例：
+ * {
+ *   "rust": { "name": "Rust专家", "prompt": "你是Rust专家...", "tier": "powerful" },
+ *   "k8s": { "name": "K8s专家", "prompt": "你是Kubernetes专家..." }
+ * }
+ * 
+ * @returns 自定义专家配置映射
+ */
+export function parseCustomExperts(): Record<string, CustomExpert> | undefined {
+  const expertsJson = process.env.CLAUDE_TEAM_CUSTOM_EXPERTS;
+  if (!expertsJson) return undefined;
+
+  try {
+    const parsed = JSON.parse(expertsJson);
+    const result: Record<string, CustomExpert> = {};
+
+    for (const [id, config] of Object.entries(parsed)) {
+      // 验证每个专家配置
+      const validated = CustomExpertSchema.safeParse(config);
+      if (validated.success) {
+        result[id] = validated.data;
+      } else {
+        console.error(`自定义专家 "${id}" 配置无效:`, validated.error.message);
+      }
+    }
+
+    return Object.keys(result).length > 0 ? result : undefined;
+  } catch (error) {
+    console.error('CLAUDE_TEAM_CUSTOM_EXPERTS 解析失败:', error);
+    return undefined;
+  }
+}
 
 /** API Key 环境变量名映射 */
 const API_KEY_NAMES: Record<Provider, string> = {
@@ -593,7 +632,13 @@ export function loadConfig(configPath?: string): Config {
   applyEnvModels(config);
   applyEnvModelPool(config);
 
-  // 5. 验证并返回
+  // 5. 应用自定义专家配置
+  const customExperts = parseCustomExperts();
+  if (customExperts) {
+    config.customExperts = { ...config.customExperts, ...customExperts };
+  }
+
+  // 6. 验证并返回
   return ConfigSchema.parse(config);
 }
 
