@@ -251,7 +251,11 @@ Tech Lead 分析 →
 
 ## 🤝 贡献
 
-欢迎提交 Issue 和 Pull Request！
+欢迎贡献！请先阅读：
+
+- [贡献指南](CONTRIBUTING.md)
+- [行为准则](CODE_OF_CONDUCT.md)
+- [安全策略](SECURITY.md)
 
 ## 📄 许可证
 

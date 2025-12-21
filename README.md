@@ -251,7 +251,11 @@ Define your own experts beyond the built-in `frontend`, `backend`, `qa`:
 
 ## 🤝 Contributing
 
-Contributions are welcome! Feel free to submit Issues and Pull Requests.
+Contributions are welcome! Please read our:
+
+- [Contributing Guide](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security Policy](SECURITY.md)
 
 ## 📄 License
 
